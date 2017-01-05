@@ -91,22 +91,10 @@ try{
     die();
 }
 
-/*
-//$date = new DateTime();
-//$date->add(new DateInterval('P1D'));
-//$date->add(new DateInterval('PT25M'));
-
-$schedule = new Schedule();
-$schedule->scheduled_date = $date->format('Y-m-d\TH:i:s\.000\Z');
-
-$c = getCampaign($cc, $cc_access_token, "Lee Test 2");
-
-$cc->campaignScheduleService->addSchedule($cc_access_token, $c->id, $schedule);
-die();
-*/
 
 handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log);
-//handleNotifications($cc, $cc_access_token, BLOOMD_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log);
+
+handleNotifications($cc, $cc_access_token, BLOOMD_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log);
 
 
 function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, &$mysql, &$pgsql, &$log){
@@ -132,7 +120,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
      */
     try{
         $the_list = getCampaignList($cc, $cc_access_token, $list_name);
-        if($the_list == null){ 
+        if($the_list == null){
             throw new Exception ("Could not find the list");
         }
         
@@ -181,7 +169,6 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
         $station->name = $row['Station_Name'];
         $num_days = evaluteSIX($six_day); 
         
-//$num_days = 1;
         
         /**
          * Check and see that an six value is availabgle and if so, if it is within
@@ -249,7 +236,6 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
         }
 
     }
-
     
 /*
 foreach($email_list as $person){
@@ -258,10 +244,13 @@ foreach($email_list as $person){
         $str .= ($station->six_day . ",");
     }
     $log->write($person->id . "," . $person->email . "," . count($person->stations) . "," . $str);
-}    
+}
 die();
+ * 
  */
+ 
     
+
     
     /**
      * Now  the list of people to contact has been built, as well as each of the
@@ -296,6 +285,7 @@ die();
                  * Make sure the user is both subscribed to the list and add the
                  * list of sites variable to their account.
                  */
+
                 $contact->lists[] = $the_list;
                 setContactSitesValue($contact, $entity);
                 $cc->contactService->updateContact($cc_access_token, $contact);
@@ -308,8 +298,7 @@ die();
 
     }
 
-    try{
-
+    try{     
         $date = new DateTime();
         $date->add(new DateInterval('PT25M'));
         $schedule = new Schedule();
@@ -659,13 +648,22 @@ function isContactRemoved(&$contact){
  * @return void
  */
 function setContactSitesValue(&$contact, $contact_data){
-    $indx = findContactCustomFieldIndex($contact, CC_STATIONS_NAME_FIELD_NAME);
     
+    $indx = findContactCustomFieldIndex($contact, CC_STATIONS_NAME_FIELD_NAME);    
     $value = "";
-    $i=0;
-    foreach($contact_data->stations as $station){
-        $value .= ((($i++ == 0) ? "" : ", ") . $station->name);
-    }    
+    $c = count($contact_data->stations);
+    
+    for($i=0; $i<$c; $i++){
+        $divider = ", ";
+        if($i==0){
+            $divider = "";            
+        }
+        if($c > 1 && $i == ($c - 1)){
+            $divider = " and ";
+        }
+        $station = array_pop($contact_data->stations);
+        $value .= ($divider . $station->name);
+    }
     
     if($indx == -1){
         $cf = CustomField::create(array('name'=> CC_STATIONS_NAME_FIELD_NAME, 'value' => $value));
@@ -774,23 +772,6 @@ function checkOrCreateSpringCastExists($station_id, &$mysql){
     
 }
 
-
-
-
-
-
-
-function createCampaign($cc, $cc_access_token){
-    /*
-    $d = (new DateTime())->format("F m, Y");
-    $props = array(
-      "name" => ("Leaf Alert - " . ($d)
-    );
-    
-    $c = Campaign::create($props);
-     * 
-     */
-}
 
 
 /**
