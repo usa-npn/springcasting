@@ -17,11 +17,11 @@ require_once 'vendor/autoload.php';
 /**
  * This sets up some of the entity names as they exist in CC
  */
-define('LEAF_LIST_NAME', 'lee-test-leaf-list');
-define('LEAF_CAMPAIGN_NAME', 'Lee Test Leaf');
+define('LEAF_LIST_NAME', 'Springcast 2017 Leaf Prediction');
+define('LEAF_CAMPAIGN_NAME', 'Springcasting 2017 Leaf Prediction');
 
-define('BLOOM_LIST_NAME', 'lee-test-bloom-list');
-define('BLOOM_CAMPAIGN_NAME', 'Lee Test Bloom');
+define('BLOOM_LIST_NAME', 'Springcast 2017 Bloom Prediction');
+define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2017 Bloom Prediction');
 
 /**
  * Maximum number of days in the future a springcasting event can be before we
