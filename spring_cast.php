@@ -94,12 +94,12 @@ try{
 }
 
 
-handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log);
+handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
 
-handleNotifications($cc, $cc_access_token, BLOOMD_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log);
+handleNotifications($cc, $cc_access_token, BLOOMD_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
 
 
-function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, &$mysql, &$pgsql, &$log){
+function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, &$mysql, &$pgsql, &$log, &$debug){
     
     $the_list = null;
     $the_campaign = null;
@@ -174,6 +174,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
         if($debug){
             $log->write(print_r($station,true));
         }
+
         /**
          * Check and see that an six value is availabgle and if so, if it is within
          * the threshold period to nofiy users.
@@ -252,8 +253,7 @@ foreach($email_list as $person){
     $log->write($person->id . "," . $person->email . "," . count($person->stations) . "," . $str);
 }
 die();
- * 
- */
+*/
  
     
 
