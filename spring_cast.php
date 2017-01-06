@@ -63,6 +63,8 @@ $log = new OutputFile("output.txt");
 $cc = new ConstantContact($params['cc_api_key']);
 $cc_access_token = $params['cc_access_token'];
 
+$debug = $params['safe_mode'];
+
 
 $mysql = null;
 $pgsql = null;
@@ -169,7 +171,9 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
         $station->name = $row['Station_Name'];
         $num_days = evaluteSIX($six_day); 
         
-        
+        if($debug){
+            $log->write(print_r($station,true));
+        }
         /**
          * Check and see that an six value is availabgle and if so, if it is within
          * the threshold period to nofiy users.
@@ -183,7 +187,9 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
              * keep processing on the next station.
              */
             try{
-                updateStationSpringCast($station->id, $event, $mysql, getDateFromDay($six_day, YEAR));
+                if(!$debug){
+                    updateStationSpringCast($station->id, $event, $mysql, getDateFromDay($six_day, YEAR));
+                }
             }catch(Exception $ex){
                 $log->write("Had a problem updating station's spring cast status: " . $station->id);
                 $log->write(print_r($ex, true));
@@ -260,6 +266,10 @@ die();
      */
     foreach($email_list as $entity){
         
+        if($debug){
+            $log->write(print_r($entity,true));
+        }
+        
         try{
             /**
              * If we get no results for the email from CC, then we need to first
@@ -267,8 +277,10 @@ die();
              * 
              */
             $results = $cc->contactService->getContacts($cc_access_token, array('email' => $entity->email));            
-            if(count($results) == 0){                
-                createNewContact($entity, $cc, $cc_access_token, $the_list);
+            if(count($results) == 0){
+                if(!$debug){
+                    createNewContact($entity, $cc, $cc_access_token, $the_list);
+                }
             }else{
 
                 $contact = $results->results[0];
@@ -288,7 +300,9 @@ die();
 
                 $contact->lists[] = $the_list;
                 setContactSitesValue($contact, $entity);
-                $cc->contactService->updateContact($cc_access_token, $contact);
+                if(!$debug){
+                    $cc->contactService->updateContact($cc_access_token, $contact);
+                }
             }
         }catch(Exception $ex){
             $log->write("There was a problem adding a person to the day's listing: " . $entity->email . " - " . $the_list->name);
@@ -298,13 +312,15 @@ die();
 
     }
 
-    try{     
-        $date = new DateTime();
-        $date->add(new DateInterval('PT25M'));
-        $schedule = new Schedule();
-        $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s\.000\Z');
+    try{
+        if(!$debug){
+            $date = new DateTime();
+            $date->add(new DateInterval('PT25M'));
+            $schedule = new Schedule();
+            $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s\.000\Z');
                 
-        $cc->campaignScheduleService->addSchedule($cc_access_token, $the_campaign->id, $schedule); 
+            $cc->campaignScheduleService->addSchedule($cc_access_token, $the_campaign->id, $schedule); 
+        }
 
     }catch(Exception $ex){
         $log->write(print_r($ex, true));

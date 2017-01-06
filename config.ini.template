@@ -12,3 +12,5 @@ pgsql_db=
 
 cc_api_key=
 cc_access_token=
+
+safe_mode=1
