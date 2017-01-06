@@ -517,7 +517,7 @@ function getStationQuery($event_name){
     return "SELECT Station.Station_ID, Station.Station_Name, Station.Latitude, Station.Longitude,
     Person.email, Person.Person_ID,
     Network_Station.Network_ID, Network.no_group_site,
-    springcast.Leaf_Date, springcast.Bloom_Date,
+    Springcast.Leaf_Date, Springcast.Bloom_Date,
 
     GROUP_CONCAT(DISTINCT admins.Person_ID) `admin_ids`, 
     GROUP_CONCAT(DISTINCT admins.email) `admin_emails`
@@ -528,26 +528,26 @@ function getStationQuery($event_name){
     LEFT JOIN usanpn2.Network_Station
     ON Network_Station.Station_ID = Station.Station_ID    
     LEFT JOIN usanpn2.Station_Species_Individual
-    ON Station_Species_Individual.Individual_ID = Station.Station_ID
+    ON Station_Species_Individual.Station_ID = Station.Station_ID
 
-    LEFT JOIN usanpn2.springcast
-    ON springcast.Station_ID = Station.Station_ID AND springcast.Year = " . YEAR . "    
+    LEFT JOIN usanpn2.Springcast
+    ON Springcast.Station_ID = Station.Station_ID AND Springcast.Year = " . YEAR . "    
     
     
     LEFT JOIN usanpn2.Network_Person
     ON Network_Person.Network_ID = Network_Station.Network_ID
     LEFT JOIN usanpn2.App_Role_Network_Person
-    ON app_role_network_person.Network_Person_ID = network_person.Network_Person_ID 
+    ON App_Role_Network_Person.Network_Person_ID = Network_Person.Network_Person_ID 
     
     LEFT JOIN usanpn2.Network
     ON Network.Network_ID = Network_Station.Network_ID
     
     LEFT JOIN usanpn2.Person `admins`
-    ON admins.Person_ID = Network_Person.Person_ID AND app_role_network_person.Role_ID = 1
+    ON admins.Person_ID = Network_Person.Person_ID AND App_Role_Network_Person.Role_ID = 1
     
 
     WHERE Station_Species_Individual.Species_ID IN (35, 36)
-    and (springcast.Springcast_ID IS NULL OR springcast." . $event_name . " IS NULL)
+    and (Springcast.Springcast_ID IS NULL OR Springcast." . $event_name . " IS NULL)
     GROUP BY Station.Station_ID";     
 }
 
