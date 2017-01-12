@@ -18,7 +18,7 @@ require_once 'vendor/autoload.php';
  * This sets up some of the entity names as they exist in CC
  */
 define('LEAF_LIST_NAME', 'Springcast 2017 Leaf Prediction');
-define('LEAF_CAMPAIGN_NAME', 'Springcasting 2017 Leaf Prediction');
+define('LEAF_CAMPAIGN_NAME', 'Springcasting 2017 Leaf Prediction 2');
 
 define('BLOOM_LIST_NAME', 'Springcast 2017 Bloom Prediction');
 define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2017 Bloom Prediction');
@@ -36,7 +36,7 @@ define('YEAR', (new DateTime())->format('Y'));
  * defined here so we can reference those fields dynamically in our queries.
  */
 define('LEAF_EVENT', 'Leaf_Date');
-define('BLOOMD_EVENT', 'Bloom_Date');
+define('BLOOM_EVENT', 'Bloom_Date');
 
 define('LEAF_PHENOPHASE', 'leaf');
 define('BLOOM_PHENOPHASE', 'bloom');
@@ -64,6 +64,9 @@ $cc = new ConstantContact($params['cc_api_key']);
 $cc_access_token = $params['cc_access_token'];
 
 $debug = $params['safe_mode'];
+
+global $blacklist;
+$blacklist = generateBlacklist();
 
 
 $mysql = null;
@@ -96,7 +99,7 @@ try{
 
 handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
 
-handleNotifications($cc, $cc_access_token, BLOOMD_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
+handleNotifications($cc, $cc_access_token, BLOOM_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
 
 
 function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, &$mysql, &$pgsql, &$log, &$debug){
@@ -105,7 +108,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
     $the_campaign = null;
     $email_list = array();
 
-    $current_date = new DateTime();    
+    $current_date = new DateTime();
 //$current_date = new DateTime('2016-04-15');
     $three_day = $current_date->add(new DateInterval('P3D'));
     
@@ -247,9 +250,6 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
 /*
 foreach($email_list as $person){
     $str = "";
-    foreach($person->stations as $station){
-        $str .= ($station->six_day . ",");
-    }
     $log->write($person->id . "," . $person->email . "," . count($person->stations) . "," . $str);
 }
 die();
@@ -344,6 +344,12 @@ die();
  * @param Station $station
  */
 function addPersonToContactList($person_id, $email, &$email_list, &$station){
+    global $blacklist;
+    
+    
+    if(in_array($email, $blacklist)){
+        return;
+    }
     
     if(!array_key_exists($person_id, $email_list)){
         $person = new LilacPerson();
@@ -785,6 +791,16 @@ function checkOrCreateSpringCastExists($station_id, &$mysql){
     }
     
     return $id;
+    
+}
+
+function generateBlacklist(){
+    
+    $contents = file_get_contents('blacklist.ini');
+    $list = explode("\n", $contents);
+    array_shift($list);
+    
+    return $list;
     
 }
 
