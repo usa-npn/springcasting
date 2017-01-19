@@ -58,7 +58,7 @@ use Ctct\Components\Contacts\EmailAddress;
 use Ctct\Components\Contacts\CustomField;
 
 $params = parse_ini_file('config.ini');
-$log = new OutputFile("output.txt");
+$log = new OutputFile(__DIR__ . "/output.txt");
 
 $cc = new ConstantContact($params['cc_api_key']);
 $cc_access_token = $params['cc_access_token'];
@@ -313,7 +313,13 @@ die();
     }
 
     try{
+        
+        $list = getCampaignList($cc, $cc_access_token, $list_name);
+        if($list->contact_count == 0){
+            throw new Exception("No one on the list to contact, not scheduling the campaign.");
+        }        
         if(!$debug){
+
             $date = new DateTime();
             $date->add(new DateInterval('PT25M'));
             $schedule = new Schedule();
@@ -479,10 +485,16 @@ function removeAllContactsFromList($cc_access_token, $cc, $the_list, &$log){
  * @param string $list_name
  * @return ContactList
  */
-function getCampaignList($cc, $cc_access_token, $list_name){
+function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
+    
+    $params = array();
+    
+    if($next){
+        $params['next'] = $next;
+    }    
     
     $the_list = null;
-    $lists = $cc->listService->getLists($cc_access_token);
+    $lists = $cc->listService->getLists($cc_access_token, $params);
     /*
      * The CC API doesn't allow you to filter lists by name, so have to iterate
      * through each one to find it.
@@ -493,6 +505,10 @@ function getCampaignList($cc, $cc_access_token, $list_name){
             break;
         }
     }
+    
+    if($the_list == null && $lists->next != null){
+        $the_list = getCampaignList($cc, $cc_access_token, $list_name, $lists->next);
+    }    
     
     return $the_list;
 }
@@ -505,8 +521,13 @@ function getCampaignList($cc, $cc_access_token, $list_name){
  * @param string $campaign_name
  * @return Campaign
  */
-function getCampaign($cc, $cc_access_token, $campaign_name){
-    $campaigns = $cc->emailMarketingService->getCampaigns($cc_access_token);
+function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
+    $params = array();
+    
+    if($next){
+        $params['next'] = $next;
+    }
+    $campaigns = $cc->emailMarketingService->getCampaigns($cc_access_token, $params);
     $the_campaign = null;
     /*
      * The CC API doesn't allow you to filter campaigns by name, so have to iterate
@@ -518,6 +539,10 @@ function getCampaign($cc, $cc_access_token, $campaign_name){
             $the_campaign = $cc->emailMarketingService->getCampaign($cc_access_token, $campaign->id);
             break;
         }
+    }
+    
+    if($the_campaign == null && $campaigns->next != null){
+        $the_campaign = getCampaign($cc, $cc_access_token, $campaign_name, $campaigns->next);
     }
     
     return $the_campaign;    
