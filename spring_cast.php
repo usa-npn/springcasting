@@ -657,7 +657,7 @@ function getSIXQuery($phenophase, $date, $longitude, $latitude){
                        FROM ncep_spring_index
                        WHERE rast_date = '" . $date . "'
                        AND phenophase = '" . $phenophase . "'
-                       AND plant = 'average'
+                       AND plant = 'lilac'
                        AND ST_Intersects(rast, ST_SetSRID(ST_MakePoint(" . $lat_long_str . "),4269))";
     
     
