@@ -17,11 +17,13 @@ require_once 'vendor/autoload.php';
 /**
  * This sets up some of the entity names as they exist in CC
  */
-define('LEAF_LIST_NAME', 'Springcast 2017 Leaf Prediction');
-define('LEAF_CAMPAIGN_NAME', 'Springcasting 2017 Leaf Prediction 2');
+define('LEAF_LIST_NAME', 'Springcasting 2018 Leaf Prediction');
+define('LEAF_CAMPAIGN_NAME', '2018 Leaf-out Prediction');
 
-define('BLOOM_LIST_NAME', 'Springcast 2017 Bloom Prediction');
-define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2017 Bloom Prediction');
+define('BLOOM_LIST_NAME', 'Springcasting 2018 Bloom Prediction');
+define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2018 Bloom Prediction');
+
+
 
 /**
  * Maximum number of days in the future a springcasting event can be before we
@@ -109,8 +111,11 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
     $email_list = array();
 
     $current_date = new DateTime();
-//$current_date = new DateTime('2016-04-15');
+//$current_date = new DateTime('2017-01-31');
+//$current_date = new DateTime('2017-04-15');
+//$current_date = new DateTime('2017-02-24');
     $three_day = $current_date->add(new DateInterval('P3D'));
+    $start_size_of_list = -1;
     
     /**
      * If either the list of the campaign come back as null, or otherwise can't
@@ -135,10 +140,10 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
             throw new Exception("Could not find the campaign");
         }
         
+        $start_size_of_list = count($cc->contactService->getContactsFromList($cc_access_token, $the_list->id)->results);
         
-        removeAllContactsFromList($cc_access_token, $cc, $the_list, $log);
-
-
+        $log->write("Found a start size in the list of: " + $start_size_of_list);
+        
     } catch (Exception $ex) {
         $log->write("There was an issue estbalishing list or campaign: " . $list_name . " " . $campaign_name);
         $log->write(print_r($ex, true));
@@ -157,6 +162,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
     while($row = $station_data->fetch()){
         
         $six_day = null;
+        $log->write("Iterating over station: " . print_r($row, true));
         
         try{
             $six_data = $pgsql->getResults(getSIXQuery($phenphase, $three_day->format('Y-m-d'), $row['Longitude'], $row['Latitude']));    
@@ -168,7 +174,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
             continue;
         }
 
-
+        $log->write("Six Predicted Day: " . $six_day);
         $station = new Station();
         $station->id = $row['Station_ID'];
         $station->name = $row['Station_Name'];
@@ -182,6 +188,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
          * Check and see that an six value is availabgle and if so, if it is within
          * the threshold period to nofiy users.
          */
+        $log->write("Days diff: " . $num_days);
         if($six_day != null && !empty($six_day) && $num_days >= 0 && $num_days <= THRESHOLD){
             
             /**
@@ -221,6 +228,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
                 $admin_ids = explode(",", $row['admin_ids']);
                 $admin_emails = explode(",", $row['admin_emails']);
                 $c = count($admin_emails);
+                $log->write("List of admins to inspect: " . print_r($admin_emails, true));
                 for($i=0;$i<$c;$i++){
                     addPersonToContactList($admin_ids[$i], $admin_emails[$i], $email_list, $station);
                 }
@@ -238,6 +246,7 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
                 $station_observers = $mysql->getResults($query);
                 
                 while($observer_row = $station_observers->fetch()){
+                    $log->write("Attempting to add observer: " . print_r($observer_row, true));
                     addPersonToContactList($observer_row['Person_ID'], $observer_row['email'], $email_list, $station);
                 }
                 
@@ -277,7 +286,7 @@ die();
              * 
              */
             $results = $cc->contactService->getContacts($cc_access_token, array('email' => $entity->email));            
-            if(count($results) == 0){
+            if(count($results->results) == 0){
                 if(!$debug){
                     createNewContact($entity, $cc, $cc_access_token, $the_list);
                 }
@@ -301,7 +310,7 @@ die();
                 $contact->lists[] = $the_list;
                 setContactSitesValue($contact, $entity);
                 if(!$debug){
-                    $cc->contactService->updateContact($cc_access_token, $contact);
+                    $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_OWNER'));
                 }
             }
         }catch(Exception $ex){
@@ -313,9 +322,11 @@ die();
     }
 
     try{
-        
-        $list = getCampaignList($cc, $cc_access_token, $list_name);
-        if($list->contact_count == 0){
+                
+        $list = getCampaignList($cc, $cc_access_token, $list_name);        
+        $finish_size_of_list = count($cc->contactService->getContactsFromList($cc_access_token, $list->id)->results);
+        $log->write("Finish size of list: " . $finish_size_of_list);
+        if($start_size_of_list < 0 || ($finish_size_of_list - $start_size_of_list) == 0){
             throw new Exception("No one on the list to contact, not scheduling the campaign.");
         }        
         if(!$debug){
@@ -323,7 +334,7 @@ die();
             $date = new DateTime();
             $date->add(new DateInterval('PT25M'));
             $schedule = new Schedule();
-            $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s\.000\Z');
+            $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s');
                 
             $cc->campaignScheduleService->addSchedule($cc_access_token, $the_campaign->id, $schedule); 
         }
@@ -556,6 +567,8 @@ function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
  * 
  * Returns the query.
  * 
+ * Here's an additional where clause that can be added for testing purposes:
+ * and (Person.email = 'rlmarsh85@gmail.com' OR Person.email = 'lee@usanpn.org' OR Station.Station_ID = 22891)
  * @param string $event_name
  * @return string
  */
@@ -595,8 +608,10 @@ function getStationQuery($event_name){
 
     WHERE Station_Species_Individual.Species_ID IN (35, 36)
     and (Springcast.Springcast_ID IS NULL OR Springcast." . $event_name . " IS NULL)
+        
     GROUP BY Station.Station_ID";     
 }
+
 
 /**
  * Generateas a query to get observer details for anyone that has ever observed
@@ -658,8 +673,8 @@ function getSIXQuery($phenophase, $date, $longitude, $latitude){
  * @return int
  */
 function evaluteSIX($value){
+
     $date = new DateTime();
-//$date = new DateTime('2016-04-15');
     $current_doy = $date->format('z') + 1;
     
     return ( $value - $current_doy );
