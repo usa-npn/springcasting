@@ -140,9 +140,12 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
             throw new Exception("Could not find the campaign");
         }
         
-        $start_size_of_list = count($cc->contactService->getContactsFromList($cc_access_token, $the_list->id)->results);
+        $contact_list = array();
+        $contact_list = getContacts($cc, $cc_access_token, $the_list, $contact_list, $next=null);
+        $start_size_of_list = count($contact_list);
         
         $log->write("Found a start size in the list of: " + $start_size_of_list);
+        
         
     } catch (Exception $ex) {
         $log->write("There was an issue estbalishing list or campaign: " . $list_name . " " . $campaign_name);
@@ -323,8 +326,11 @@ die();
 
     try{
                 
-        $list = getCampaignList($cc, $cc_access_token, $list_name);        
-        $finish_size_of_list = count($cc->contactService->getContactsFromList($cc_access_token, $list->id)->results);
+        $list = getCampaignList($cc, $cc_access_token, $list_name);
+        $contact_list = array();
+        $contact_list = getContacts($cc, $cc_access_token, $list, $contact_list, $next=null);
+        
+        $finish_size_of_list = count($contact_list);
         $log->write("Finish size of list: " . $finish_size_of_list);
         if($start_size_of_list < 0 || ($finish_size_of_list - $start_size_of_list) == 0){
             throw new Exception("No one on the list to contact, not scheduling the campaign.");
@@ -487,6 +493,31 @@ function removeAllContactsFromList($cc_access_token, $cc, $the_list, &$log){
         
     }
 }
+
+/**
+* Will get a complete enumeration of users that are members of a particular contact list.
+**/
+function getContacts($cc, $cc_access_token, $the_list, &$arr, $next=null){
+    print "Calling getContacts with: " . $next;
+	print "Count arr:" . count($arr);
+	
+	$params = array();
+	if($next && !empty($next)){
+		$params['next'] = $next;
+	}
+	
+    $results = $cc->contactService->getContactsFromList($cc_access_token, $the_list->id, $params);
+	
+	$some_contacts = array_merge($arr, $results->results);
+	
+	$next = $results->next;
+	if($next && !empty($next)){
+		$some_contacts = getContacts($cc, $cc_access_token, $the_list, $some_contacts, $next);
+	}
+	
+	return $some_contacts;
+}
+
 
 
 /**
@@ -823,7 +854,7 @@ function checkOrCreateSpringCastExists($station_id, &$mysql){
     $results = $mysql->getResults($query);
     
     if($row = $results->fetch()){
-        $id = $row['Sprincast_ID'];
+        $id = $row['Springcast_ID'];
     }else{
         $query = "INSERT INTO usanpn2.Springcast (Station_ID, Year) VALUES (" . $station_id . ", " . YEAR . ")";
         $mysql->runQuery($query);
