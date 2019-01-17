@@ -17,11 +17,11 @@ require_once 'vendor/autoload.php';
 /**
  * This sets up some of the entity names as they exist in CC
  */
-define('LEAF_LIST_NAME', 'Springcasting 2018 Leaf Prediction');
-define('LEAF_CAMPAIGN_NAME', 'Springcasting 2018 Leaf-out Prediction');
+define('LEAF_LIST_NAME', 'Springcasting 2019 Leaf Prediction');
+define('LEAF_CAMPAIGN_NAME', 'Springcasting 2019 Leaf-out Prediction');
 
-define('BLOOM_LIST_NAME', 'Springcasting 2018 Bloom Prediction');
-define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2018 Bloom Prediction');
+define('BLOOM_LIST_NAME', 'Springcasting 2019 Bloom Prediction');
+define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2019 Bloom Prediction');
 
 
 
