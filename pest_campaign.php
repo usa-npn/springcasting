@@ -12,9 +12,16 @@ class PestCampaign{
     
     private $base_temp;
     private $start_date;
+	
+
     private $threshold;
+	
+	private $gddMethod;
+	
+	private $lowerThreshold;
+	private $upperThreshold;
     
-    public function __construct($campaign_name, $list_name, $mailer_list_name, $base_temp, $threshold, $start_date="January 1") {
+    public function __construct($campaign_name, $list_name, $mailer_list_name, $threshold, $base_temp=null, $gdd_method="simple", $start_date="January 1", $lower_threshold=null, $upper_threshold=null) {
         $this->campaign_name = $campaign_name;
         $this->list_name = $list_name;
         $this->mailer_list_name = $mailer_list_name;        
@@ -22,6 +29,10 @@ class PestCampaign{
         $this->base_temp = $base_temp;
         $this->threshold = $threshold;
         $this->start_date = new DateTime($start_date);
+		$this->gddMethod = $gdd_method;
+		
+		$this->lowerThreshold = $lower_threshold;
+		$this->upperThreshold = $upper_threshold;
     }
     
     function getCampaignName() {
@@ -83,6 +94,18 @@ class PestCampaign{
     function getThreshold() {
         return $this->threshold;
     }
+	
+    function getLowerThreshold() {
+        return $this->lowerThreshold;
+    }
+	
+    function getUpperThreshold() {
+        return $this->upperThreshold;
+    }		
+	
+	function getGDDMethod(){
+		return $this->gddMethod;
+	}	
 
     function setBaseTemp($base_temp) {
         $this->base_temp = $base_temp;
@@ -95,6 +118,20 @@ class PestCampaign{
     function setThreshold($threshold) {
         $this->threshold = $threshold;
     }
+	
+    function setLowerThreshold($threshold) {
+        $this->lowerThreshold = $threshold;
+    }	
+	
+    function setUpperThreshold($threshold) {
+        $this->upperThreshold = $threshold;
+    }	
+	
+    function setGDDMethod($method) {
+        $this->gddMethod = $method;
+    }	
+	
+
 
 
 

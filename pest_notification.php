@@ -5,7 +5,7 @@
  */
 date_default_timezone_set("UTC");
 
-require_once 'database.php';
+//require_once 'database.php';
 require_once 'output_file.php';
 require_once 'pest_campaign.php';
 /**
@@ -51,11 +51,123 @@ $zip_codes = generateZipCodeList();
 
 $access_token_v3 = fetchAccessToken();
 
+/*
 
-$eab_campaign = new PestCampaign("EAB Campaign Test", "EAB Test SIgnup", "EAB Test Mailer List", 32, 1000);
+Create and setup all the campaigns. It's important to note that the "signup" mailing list is the core list to which users actually indiciate
+they have interest, and which we make available through some interface on our website.
+
+The "Mailer" type lists are to be populated with users who are ready to recieve the email, each day that this script runs. So the singup mailing
+list starts full or is filled by the users. The mailing list starts and empty and is filled by this script as it becomes meaningful to contact users.
+*/
+
+$all_campaigns = array();
+define('STANDARD_BASE_TEMP',50);
+
+define('BRONZE_BIRCH_THRESHOLD1',364);
+define('BRONZE_BIRCH_THRESHOLD2',450);
+
+$all_campaigns[] = new PestCampaign("Bronze Birch Notification 1", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 1", BRONZE_BIRCH_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+
+$all_campaigns[] = new PestCampaign("Bronze Birch Notification 2", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 2", BRONZE_BIRCH_THRESHOLD2, STANDARD_BASE_TEMP,"simple", "January 1");
 
 
-handleNotifications($cc, $cc_access_token, $access_token_v3, $eab_campaign, $debug);
+define('PINE_NEEDLE_THRESHOLD1',232);
+define('PINE_NEEDLE_THRESHOLD2',298);
+$all_campaigns[] = new PestCampaign("Pine Needle Scale Notification 1", "Pine Needle Scale Pheno Forecast", "Pine Needle Scale Mailer 1", PINE_NEEDLE_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "March 1");
+$all_campaigns[] = new PestCampaign("Pine Needle Scale Notification 2", "Pine Needle Scale Pheno Forecast", "Pine Needle Scale Mailer 2", PINE_NEEDLE_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "March 1");
+
+
+define('EASTERN_TENT_THRESHOLD1',63);
+define('EASTERN_TENT_THRESHOLD2',90);
+
+$all_campaigns[] = new PestCampaign("Eastern Tent Caterpillar Notification 1", "Eastern Tent Caterpillar Pheno Forecast", "Eastern Tent Caterpillar Mailer 1", EASTERN_TENT_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "March 1");
+$all_campaigns[] = new PestCampaign("Eastern Tent Caterpillar Notification 2", "Eastern Tent Caterpillar Pheno Forecast", "Eastern Tent Caterpillar Mailer 2", EASTERN_TENT_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "March 1");
+
+
+define("GYPSY_MOTH_UPPER_THRESHHOLD",104);
+define("GYPSY_MOTH_LOWER_THRESHHOLD",37.4);
+define("GYPSY_MOTH_THRESHOLD1",472);
+define("GYPSY_MOTH_THRESHOLD2",571);
+
+$all_campaigns[] = new PestCampaign("Gypsy Moth Notification 1", "Gypsy Moth Pheno Forecast", "Gypsy Moth Mailer 1", GYPSY_MOTH_THRESHOLD1, null, "simple", "January 1",GYPSY_MOTH_LOWER_THRESHHOLD, GYPSY_MOTH_UPPER_THRESHHOLD);
+$all_campaigns[] = new PestCampaign("Gypsy Moth Notification 2", "Gypsy Moth Pheno Forecast", "Gypsy Moth Mailer 2", GYPSY_MOTH_THRESHOLD2, null, "simple", "January 1",GYPSY_MOTH_LOWER_THRESHHOLD, GYPSY_MOTH_UPPER_THRESHHOLD);
+
+define("ALB_UPPER_THRESHOLD",86);
+define("ALB_LOWER_THRESHOLD",50);
+define("ALB_THRESHOLD1",579);
+define("ALB_THRESHOLD2",689.75);
+
+$all_campaigns[] = new PestCampaign("ALB Notification 1", "Asian Longhorned Beetle Pheno Forecast", "ALB Mailer 1", ALB_THRESHOLD1, null, "simple", "January 1",ALB_LOWER_THRESHOLD, ALB_UPPER_THRESHOLD);
+$all_campaigns[] = new PestCampaign("ALB Notification 2", "Asian Longhorned Beetle Pheno Forecast", "ALB Mailer 2", ALB_THRESHOLD2, null, "simple", "January 1",ALB_LOWER_THRESHOLD, ALB_UPPER_THRESHOLD);
+
+
+
+define('BAGWORM_THRESHOLD1',498);
+define('BAGWORM_THRESHOLD2',600);
+
+$all_campaigns[] = new PestCampaign("Bagworm Notification 1", "Bagworm Pheno Forecast", "Bagworm Mailer 1", BAGWORM_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "March 1");
+$all_campaigns[] = new PestCampaign("Bagworm Notification 2", "Bagworm Pheno Forecast", "Bagworm Mailer 2", BAGWORM_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "March 1");
+
+
+
+define("MAGNOLIA_SCALE_THRESHOLD1",1774);
+define("MAGNOLIA_SCALE_THRESHOLD2",1938);
+
+$all_campaigns[] = new PestCampaign("Magnolia Scale Notification 1", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 1", MAGNOLIA_SCALE_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Magnolia Scale Notification 2", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 2", MAGNOLIA_SCALE_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+
+
+define('HWA_BASE_TEMP',32);
+define('HWA_THRESHOLD1',16);
+define('HWA_THRESHOLD2',26);
+define('HWA_THRESHOLD3',1001);
+$all_campaigns[] = new PestCampaign("HWA Notification 1", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 1", HWA_THRESHOLD1, HWA_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("HWA Notification 2", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 2", HWA_THRESHOLD2, HWA_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("HWA Notification 3", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 3", HWA_THRESHOLD3, HWA_BASE_TEMP, "simple", "January 1");
+
+
+define("WINTER_MOTH_THRESHOLD1",12);
+define("WINTER_MOTH_THRESHOLD2",20);
+
+$all_campaigns[] = new PestCampaign("Winter Moth Notification 1", "Winter Moth Pheno Forecast", "Winter Moth Mailer 1", WINTER_MOTH_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Winter Moth Notification 2", "Winter Moth Pheno Forecast", "Winter Moth Mailer 2", WINTER_MOTH_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+
+
+
+define("LILAC_BORER_THRESHOLD1",408);
+define("LILAC_BORER_THRESHOLD2",500);
+
+$all_campaigns[] = new PestCampaign("Lilac Borer Notification 1", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 1", LILAC_BORER_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Lilac Borer Notification 2", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 2", LILAC_BORER_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+
+
+
+define("EAB_THRESHOLD1",364);
+define("EAB_THRESHOLD2",450);
+$all_campaigns[] = new PestCampaign("EAB Notification 1", "Emerald Ash Borer Pheno Forecast", "EAB Mailer 1", EAB_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("EAB Notification 2", "Emerald Ash Borer Pheno Forecast", "EAB Mailer 2", EAB_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+
+
+
+define("APPLE_MAGGOT_THRESHOLD1",774);
+define("APPLE_MAGGOT_THRESHOLD2",900);
+$all_campaigns[] = new PestCampaign("Apple Maggot Notification 1", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 1", APPLE_MAGGOT_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Apple Maggot Notification 2", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 2", APPLE_MAGGOT_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+
+
+
+//$eab_campaign = new PestCampaign("EAB Campaign Test 2", "EAB Test SIgnup", "EAB Test Mailer List",200, 50, "double-sine", "January 1",7,32);
+//$eab_campaign = new PestCampaign("EAB Campaign Test 2", "EAB Test SIgnup", "EAB Test Mailer List", 200, 50, "simple", "January 1");
+//handleNotifications($cc, $cc_access_token, $access_token_v3, $eab_campaign, $debug);
+
+
+$log->write(print_r($all_campaigns,true));
+
+
+foreach($all_campaigns as $campaign){
+	handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign, $debug);
+}
+
 
 
 function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign, &$debug){
@@ -112,7 +224,7 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
      * people are located. This will populate each contract with lat/long values
      */
     getContactLocations($contact_list_not_yet_emailed, $access_token_v3);
-    
+print_r($contact_list_not_yet_emailed); 
     foreach($contact_list_not_yet_emailed as $contact){
         /**
          * Checks the following:
@@ -120,10 +232,14 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
          *  b) Email isn't in blacklist (user asked not to be contacted about this)
          *  c) Lat/long are populated (can't do anything without those values)
          */
+$log->write("Is contact mailed:");		 
+$log->write(contactMailed($contact,$campaign->getMailerList()));
+
         if(!contactMailed($contact,$campaign->getMailerList()) && !in_array(getContactEmail($contact), $blacklist) && ( $contact->lat != -1 && $contact->long != -1 ) && !isContactRemoved($contact) ){
                     
             $threshold_day = getThreshholdDate($contact->lat, $contact->long, $campaign);
-            
+$log->write("Threshold day:");
+print_r($threshold_day);            
             /**
              * In our use case, either the threshold has been hit or it hasn't. If it hasn't been
              * hit then the threshold date is null and we don't notify the user. If it's any
@@ -318,13 +434,27 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
 //    $start_date = new DateTime("2017-01-01");
 //    $finish_date = new DateTime("2017-09-05");
     $threshold_date = null;
-    
-    $url = 'https://data-dev.usanpn.org:3006/v0/agdd/agddPointTimeSeries?startDate=' . $start_date->format('Y-m-d') . 
-            '&endDate=' . $finish_date->format('Y-m-d') . 
-            '&base=' . $pest_model->getBaseTemp() . 
+print_r($pest_model);    
+    $url = 'https://data-dev.usanpn.org:3006/v0/agdd/' . $pest_model->getGDDMethod() . '/pointTimeSeries?startDate=' . $start_date->format('Y-m-d') . 
+            '&endDate=' . $finish_date->format('Y-m-d') .             
+			'&climateProvider=NCEP' .
+			'&temperatureUnit=fahrenheit' .
             '&latitude=' . $latitude . 
-            '&longitude=' . $longitude . 
-            '&agddThreshold=' . $pest_model->getThreshold();
+            '&longitude=' . $longitude;
+			
+			$url .= '&agddThreshold=' . $pest_model->getThreshold();
+			
+			if($pest_model->getLowerThreshold()){
+				$url .= '&lowerThreshold=' . $pest_model->getLowerThreshold();
+			}else{
+				$url .= '&base=' . $pest_model->getBaseTemp();
+			}
+			
+			if($pest_model->getUpperThreshold()){
+				$url .= '&upperThreshold=' . $pest_model->getUpperThreshold();
+			}			
+			
+print_r($url);			
     try{
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -334,8 +464,9 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
         curl_close($ch);
 
         $json = json_decode($result, true);
-
-        if($json['dateAgddThresholdMet']){
+print_r($json);
+print_r($json['dateAgddThresholdMet']);
+        if(array_key_exists('dateAgddThresholdMet',$json)){
             $threshold_date = new DateTime($json['dateAgddThresholdMet']);
         }
     }catch(Exception $ex){
@@ -345,7 +476,7 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
         $log->write(print_r($ex, true));
         
     }
-
+print_r($threshold_date);
     return $threshold_date;
 
 }
@@ -415,9 +546,13 @@ function getContactLocations(&$contact_list, $access_token_v3){
     
     foreach($contact_list as $contact){
         $zip_code = getZipCodeForContact($contact, $access_token_v3);
+print_r("Contact ZIP Code:");
+print_r($zip_code);
         
         if($zip_code){            
             $coords = $zip_codes[$zip_code];
+print_r("Found coords:");
+print_r($coords);			
             $contact->lat = $coords[0];
             $contact->long = $coords[1];
         }else{
@@ -453,8 +588,11 @@ function getZipCodeForContact(&$contact, $access_token_v3){
     
     global $log;
     $zip_code = null;
-    $email = urlencode(getContactEmail($contact));
+    $email = urlencode(getContactEmail($contact));	
     $url = 'https://api.cc.email/v3/contacts?status=all&email=' . $email . '&include=custom_fields&include_count=false';
+	
+print_r("Trying to get zip code:\r\n");
+print_r($url);	
     
     try{
         $ch = curl_init();
@@ -469,19 +607,24 @@ function getZipCodeForContact(&$contact, $access_token_v3){
         ));   
         
         $result = curl_exec($ch);
-        print_r($result);
+print_r("Curl results");		
+print_r($result);
         curl_close($ch);
 
         $json = json_decode($result, true);
         
         $custom_fields = $json['contacts'][0]['custom_fields'];
+print_r("Custom fields:");
+print_r($custom_fields);		
         foreach($custom_fields as $cf){
             /**
              * Actually, the only way to refer to the cuomst fields is through
              * a UUID assigned to that field, an arbitrary number, which for
              * our puposes is defined earlier in the script.
              */
+print_r(ZIP_CODE_FIELD_ID);			 
             if($cf['custom_field_id'] == ZIP_CODE_FIELD_ID){
+print_r("Found a thing matching ZIP CODE");				
                 $zip_code = $cf['value'];
                 break;
             }
@@ -567,6 +710,8 @@ function fetchAccessToken(){
     
     return $access_token;
 }
+
+
 
 
 
