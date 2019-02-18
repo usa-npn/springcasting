@@ -67,7 +67,7 @@ define('BRONZE_BIRCH_THRESHOLD1',364);
 define('BRONZE_BIRCH_THRESHOLD2',450);
 
 
-/*
+
 $all_campaigns[] = new PestCampaign("Bronze Birch Notification 1", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 1", BRONZE_BIRCH_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Bronze Birch Notification 2", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 2", BRONZE_BIRCH_THRESHOLD2, STANDARD_BASE_TEMP,"simple", "January 1");
 
@@ -117,7 +117,7 @@ define("MAGNOLIA_SCALE_THRESHOLD2",1938);
 $all_campaigns[] = new PestCampaign("Magnolia Scale Notification 1", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 1", MAGNOLIA_SCALE_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Magnolia Scale Notification 2", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 2", MAGNOLIA_SCALE_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
 
-*/
+
 define('HWA_BASE_TEMP',32);
 define('HWA_THRESHOLD1',16);
 define('HWA_THRESHOLD2',26);
@@ -126,7 +126,7 @@ $all_campaigns[] = new PestCampaign("HWA Notification 1", "Hemlock Woolly Adelgi
 $all_campaigns[] = new PestCampaign("HWA Notification 2", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 2", HWA_THRESHOLD2, HWA_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("HWA Notification 3", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 3", HWA_THRESHOLD3, HWA_BASE_TEMP, "simple", "January 1");
 
-/*
+
 define("WINTER_MOTH_THRESHOLD1",12);
 define("WINTER_MOTH_THRESHOLD2",20);
 
@@ -154,7 +154,7 @@ define("APPLE_MAGGOT_THRESHOLD1",774);
 define("APPLE_MAGGOT_THRESHOLD2",900);
 $all_campaigns[] = new PestCampaign("Apple Maggot Notification 1", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 1", APPLE_MAGGOT_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Apple Maggot Notification 2", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 2", APPLE_MAGGOT_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
-*/
+
 
 
 //$eab_campaign = new PestCampaign("EAB Campaign Test 2", "EAB Test SIgnup", "EAB Test Mailer List",200, 50, "double-sine", "January 1",7,32);
@@ -502,12 +502,12 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
     $finish_date = (new DateTime())->add( new DateInterval('P6D'));
     $threshold_date = null;
 
-    $url = 'https://data-dev.usanpn.org:3006/v0/agdd/' . $pest_model->getGDDMethod() . '/pointTimeSeries?startDate=' . $start_date->format('Y-m-d') . 
+    $url = 'https://data.usanpn.org:3006/v0/agdd/' . $pest_model->getGDDMethod() . '/pointTimeSeries?startDate=' . $start_date->format('Y-m-d') . 
             '&endDate=' . $finish_date->format('Y-m-d') .             
 			'&climateProvider=NCEP' .
 			'&temperatureUnit=fahrenheit' .
-            '&latitude=' . $latitude . 
-            '&longitude=' . $longitude;
+            '&latitude=' . trim($latitude) . 
+            '&longitude=' . trim($longitude);
 			
     $url .= '&agddThreshold=' . $pest_model->getThreshold();
 
@@ -532,7 +532,7 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
         curl_close($ch);
 
         $json = json_decode($result, true);
-
+        $log->write($json);
         if(array_key_exists('dateAgddThresholdMet',$json) && !$json['dateAgddThresholdMet'] == null){
             $threshold_date = new DateTime($json['dateAgddThresholdMet']);
         }
