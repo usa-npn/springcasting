@@ -9,6 +9,7 @@ class PestCampaign{
     private $campaign;
     private $list;
     private $mailer_list;
+    private $mailer_list_v3;
     
     private $base_temp;
     private $start_date;
@@ -33,6 +34,7 @@ class PestCampaign{
 		
 		$this->lowerThreshold = $lower_threshold;
 		$this->upperThreshold = $upper_threshold;
+		
     }
     
     function getCampaignName() {
@@ -74,6 +76,10 @@ class PestCampaign{
     function getMailerList() {
         return $this->mailer_list;
     }
+	
+    function getMailerListV3() {
+        return $this->mailer_list_v3;
+    }	
 
     function setMailerListName($mailer_list_name) {
         $this->mailer_list_name = $mailer_list_name;
@@ -82,6 +88,10 @@ class PestCampaign{
     function setMailerList($mailer_list) {
         $this->mailer_list = $mailer_list;
     }
+	
+    function setMailerListV3($mailer_list_v3) {
+        $this->mailer_list_v3 = $mailer_list_v3;
+    }	
 
     function getBaseTemp() {
         return $this->base_temp;

@@ -33,7 +33,7 @@ define('YEAR', (new DateTime())->format('Y'));
  */
 
 
-$params = parse_ini_file('config.ini');
+$params = parse_ini_file(__DIR__ . '/config.ini');
 global $log;
 $log = new OutputFile(__DIR__ . "/output.txt");
 
@@ -66,8 +66,9 @@ define('STANDARD_BASE_TEMP',50);
 define('BRONZE_BIRCH_THRESHOLD1',364);
 define('BRONZE_BIRCH_THRESHOLD2',450);
 
-$all_campaigns[] = new PestCampaign("Bronze Birch Notification 1", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 1", BRONZE_BIRCH_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 
+/*
+$all_campaigns[] = new PestCampaign("Bronze Birch Notification 1", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 1", BRONZE_BIRCH_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Bronze Birch Notification 2", "Bronze Birch Borer Pheno Forecast", "Bronze Birch Mailer 2", BRONZE_BIRCH_THRESHOLD2, STANDARD_BASE_TEMP,"simple", "January 1");
 
 
@@ -116,7 +117,7 @@ define("MAGNOLIA_SCALE_THRESHOLD2",1938);
 $all_campaigns[] = new PestCampaign("Magnolia Scale Notification 1", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 1", MAGNOLIA_SCALE_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Magnolia Scale Notification 2", "Magnolia Scale Pheno Forecast", "Magnolia Scale Mailer 2", MAGNOLIA_SCALE_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
 
-
+*/
 define('HWA_BASE_TEMP',32);
 define('HWA_THRESHOLD1',16);
 define('HWA_THRESHOLD2',26);
@@ -125,7 +126,7 @@ $all_campaigns[] = new PestCampaign("HWA Notification 1", "Hemlock Woolly Adelgi
 $all_campaigns[] = new PestCampaign("HWA Notification 2", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 2", HWA_THRESHOLD2, HWA_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("HWA Notification 3", "Hemlock Woolly Adelgid Pheno Forecast", "HWA Mailer 3", HWA_THRESHOLD3, HWA_BASE_TEMP, "simple", "January 1");
 
-
+/*
 define("WINTER_MOTH_THRESHOLD1",12);
 define("WINTER_MOTH_THRESHOLD2",20);
 
@@ -153,7 +154,7 @@ define("APPLE_MAGGOT_THRESHOLD1",774);
 define("APPLE_MAGGOT_THRESHOLD2",900);
 $all_campaigns[] = new PestCampaign("Apple Maggot Notification 1", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 1", APPLE_MAGGOT_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
 $all_campaigns[] = new PestCampaign("Apple Maggot Notification 2", "Apple Maggot Pheno Forecast", "Apple Maggot Mailer 2", APPLE_MAGGOT_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
-
+*/
 
 
 //$eab_campaign = new PestCampaign("EAB Campaign Test 2", "EAB Test SIgnup", "EAB Test Mailer List",200, 50, "double-sine", "January 1",7,32);
@@ -177,6 +178,9 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
     $contact_list_not_yet_emailed = array();
     $contact_list_to_mail = array();
     
+    $log->write("Starting the following campaign:");
+    $log->write(print_r($campaign, true));
+    
     /**
      * If either the lists of the campaign come back as null, or otherwise can't
      * be found on the CC server, then the process is terminated as not much
@@ -192,7 +196,12 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
         $campaign->setMailerList(getCampaignList($cc, $cc_access_token, $campaign->getMailerListName()));
         if($campaign->getMailerList() == null){
             throw new Exception ("Could not find the mailer list");
-        }        
+        }
+
+        $campaign->setMailerListV3(getCampaignListV3($campaign->getMailerListName(), $access_token_v3));
+        if($campaign->getMailerListV3() == null){
+                throw new Exception ("Could not find the mailer list V3");
+        }
         
         
         $campaign->setCampaign(getCampaign($cc, $cc_access_token, $campaign->getCampaignName()));        
@@ -215,6 +224,7 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
     } catch (Exception $ex) {
         $log->write("There was an issue estbalishing list or campaign: " . $campaign->getListName() . " " . $campaign->getCampaignName());
         $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
         return;
     }
 
@@ -224,22 +234,25 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
      * people are located. This will populate each contract with lat/long values
      */
     getContactLocations($contact_list_not_yet_emailed, $access_token_v3);
-print_r($contact_list_not_yet_emailed); 
+
     foreach($contact_list_not_yet_emailed as $contact){
+        $log->write("Workign with the following contact:");
+        $log->write(print_r($contact,true));
         /**
          * Checks the following:
          *  a) We haven't already contacted this person (don't waste time getting threshold date)
          *  b) Email isn't in blacklist (user asked not to be contacted about this)
          *  c) Lat/long are populated (can't do anything without those values)
          */
-$log->write("Is contact mailed:");		 
-$log->write(contactMailed($contact,$campaign->getMailerList()));
+
 
         if(!contactMailed($contact,$campaign->getMailerList()) && !in_array(getContactEmail($contact), $blacklist) && ( $contact->lat != -1 && $contact->long != -1 ) && !isContactRemoved($contact) ){
-                    
+            
+            $log->write("Contact is candidate for mailing");
             $threshold_day = getThreshholdDate($contact->lat, $contact->long, $campaign);
-$log->write("Threshold day:");
-print_r($threshold_day);            
+            $log->write("Got threshold day:");
+            $log->write(print_r($threshold_day,true));
+       
             /**
              * In our use case, either the threshold has been hit or it hasn't. If it hasn't been
              * hit then the threshold date is null and we don't notify the user. If it's any
@@ -248,8 +261,7 @@ print_r($threshold_day);
              * now.
              */
             if($threshold_day != null){
-                $contact->lists[] = $campaign->getMailerList();
-                
+                $log->write("Threshold date set, adding user to list to mail");
                 /**
                  * Constant Contact API will fail if there's any data fields it
                  * doesn't recognize when you submit the request to update the contact's
@@ -257,9 +269,9 @@ print_r($threshold_day);
                  * found before submitting to CC.
                  */
                 if(!$debug){
-                    unset($contact->lat);
-                    unset($contact->long);
-                    $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_OWNER'));
+
+                    $contact_id = getV3ContactID($contact, $access_token_v3);
+                    addUserToList($campaign->getMailerListV3(),$contact_id,$access_token_v3);
                 }
             }
         }
@@ -290,7 +302,7 @@ print_r($threshold_day);
             $date->add(new DateInterval('PT25M'));
             $schedule = new Schedule();
             $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s');
-                
+            $log->write("Scheduling campaign!");
             $cc->campaignScheduleService->addSchedule($cc_access_token, $campaign->getCampaign()->id, $schedule); 
         }
 
@@ -325,9 +337,10 @@ function getContactEmail($contact){
 * Will get a complete enumeration of users that are members of a particular contact list.
 **/
 function getContacts($cc, $cc_access_token, $the_list, &$arr, $next=null){
-    print "Calling getContacts with: " . $next;
-    print "Count arr:" . count($arr);
-
+    global $log;
+    $log->write("Calling get contacts");
+    $log->write(print_r($the_list,true));
+    
     $params = array();
     if($next && !empty($next)){
             $params['next'] = $next;
@@ -356,6 +369,10 @@ function getContacts($cc, $cc_access_token, $the_list, &$arr, $next=null){
  */
 function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
     
+    global $log;
+    $log->write("Calling getCampaignList");
+    $log->write($list_name);
+    
     $params = array();
     
     if($next){
@@ -383,6 +400,53 @@ function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
 }
 
 
+function getCampaignListV3($list_name, $access_token){
+    
+    global $log;
+    $log->write("Calling getCampaignListV3 ");
+    $log->write($list_name);
+    
+    $url = 'https://api.cc.email/v3/contact_lists?include_count=false';
+	$the_list = null;
+
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        
+ 
+
+        $lists = curl_exec($ch);
+        curl_close($ch);
+		
+        $lists = json_decode($lists);
+
+        foreach($lists->lists as $list){
+            if($list->name == $list_name){
+                    $the_list = $list;
+                    break;
+            }
+        }
+
+ 
+    
+    }catch(Exception $ex){
+        $log->write("Failed at getting v3 list");
+        $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
+    }
+    
+    return $the_list;
+}
+
+
 /**
  * Will find the Campaign from the CC account based on that campaign's name.
  * @param ConstantContact $cc
@@ -392,6 +456,10 @@ function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
  */
 function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
     $params = array();
+    global $log;
+    
+    $log->write("Calling getCampaign ");
+    $log->write($campaign_name);
     
     if($next){
         $params['next'] = $next;
@@ -429,12 +497,11 @@ function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
  */
 function getThreshholdDate($latitude, $longitude, $pest_model){
     global $log;
+    $log->write("Calling getThresholdDate");
     $start_date = new DateTime(YEAR . "-" . $pest_model->getStartDate()->format('m') . "-" . $pest_model->getStartDate()->format('d'));
     $finish_date = (new DateTime())->add( new DateInterval('P6D'));
-//    $start_date = new DateTime("2017-01-01");
-//    $finish_date = new DateTime("2017-09-05");
     $threshold_date = null;
-print_r($pest_model);    
+
     $url = 'https://data-dev.usanpn.org:3006/v0/agdd/' . $pest_model->getGDDMethod() . '/pointTimeSeries?startDate=' . $start_date->format('Y-m-d') . 
             '&endDate=' . $finish_date->format('Y-m-d') .             
 			'&climateProvider=NCEP' .
@@ -442,21 +509,22 @@ print_r($pest_model);
             '&latitude=' . $latitude . 
             '&longitude=' . $longitude;
 			
-			$url .= '&agddThreshold=' . $pest_model->getThreshold();
-			
-			if($pest_model->getLowerThreshold()){
-				$url .= '&lowerThreshold=' . $pest_model->getLowerThreshold();
-			}else{
-				$url .= '&base=' . $pest_model->getBaseTemp();
-			}
-			
-			if($pest_model->getUpperThreshold()){
-				$url .= '&upperThreshold=' . $pest_model->getUpperThreshold();
-			}			
-			
-print_r($url);			
+    $url .= '&agddThreshold=' . $pest_model->getThreshold();
+
+    if($pest_model->getLowerThreshold()){
+            $url .= '&lowerThreshold=' . $pest_model->getLowerThreshold();
+    }else{
+            $url .= '&base=' . $pest_model->getBaseTemp();
+    }
+
+    if($pest_model->getUpperThreshold()){
+            $url .= '&upperThreshold=' . $pest_model->getUpperThreshold();
+    }
+    
+    $log->write($url);
+    
     try{
-        $ch = curl_init();
+        $ch = curl_init(); 
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_URL, $url);
@@ -464,19 +532,18 @@ print_r($url);
         curl_close($ch);
 
         $json = json_decode($result, true);
-print_r($json);
-print_r($json['dateAgddThresholdMet']);
-        if(array_key_exists('dateAgddThresholdMet',$json)){
+
+        if(array_key_exists('dateAgddThresholdMet',$json) && !$json['dateAgddThresholdMet'] == null){
             $threshold_date = new DateTime($json['dateAgddThresholdMet']);
         }
     }catch(Exception $ex){
         $log->write("Could not find threshold date for:");
         $log->write($longitude . "," . $latitude);
-        $log->write(print_r($pest_model, true));
         $log->write(print_r($ex, true));
+        $log->write("FINISH ERROR");
         
     }
-print_r($threshold_date);
+
     return $threshold_date;
 
 }
@@ -509,7 +576,7 @@ function isContactRemoved(&$contact){
 
 function generateBlacklist(){
     
-    $contents = file_get_contents('blacklist.ini');
+    $contents = file_get_contents(__DIR__ . '/blacklist.ini');
     $list = explode("\n", $contents);
     array_shift($list);
     
@@ -521,7 +588,7 @@ function generateZipCodeList(){
 
     $new_array = array();
     try{
-        $zip_file_data = array_map('str_getcsv', file('zip-code.csv'));
+        $zip_file_data = array_map('str_getcsv', file(__DIR__ . '/zip-code.csv'));
         foreach($zip_file_data as $zip){
             $new_array[$zip[0]] = array($zip[1],$zip[2]);
         }
@@ -543,16 +610,18 @@ function generateZipCodeList(){
  */
 function getContactLocations(&$contact_list, $access_token_v3){
     global $zip_codes;
+    global $log;
     
     foreach($contact_list as $contact){
         $zip_code = getZipCodeForContact($contact, $access_token_v3);
-print_r("Contact ZIP Code:");
-print_r($zip_code);
+
         
         if($zip_code){            
             $coords = $zip_codes[$zip_code];
-print_r("Found coords:");
-print_r($coords);			
+            
+            $log->write("Resolved ZIP code to following coords:");
+            $log->write(print_r($coords, true));
+            
             $contact->lat = $coords[0];
             $contact->long = $coords[1];
         }else{
@@ -589,10 +658,10 @@ function getZipCodeForContact(&$contact, $access_token_v3){
     global $log;
     $zip_code = null;
     $email = urlencode(getContactEmail($contact));	
-    $url = 'https://api.cc.email/v3/contacts?status=all&email=' . $email . '&include=custom_fields&include_count=false';
-	
-print_r("Trying to get zip code:\r\n");
-print_r($url);	
+    $url = 'https://api.cc.email/v3/contacts?status=all&email=' . $email . '&include=custom_fields&include_count=false';	
+    
+    $log->write("Searching for zip on following contact:");
+    $log->write(print_r($contact, true));
     
     try{
         $ch = curl_init();
@@ -607,31 +676,29 @@ print_r($url);
         ));   
         
         $result = curl_exec($ch);
-print_r("Curl results");		
-print_r($result);
         curl_close($ch);
 
         $json = json_decode($result, true);
         
-        $custom_fields = $json['contacts'][0]['custom_fields'];
-print_r("Custom fields:");
-print_r($custom_fields);		
+        $custom_fields = $json['contacts'][0]['custom_fields'];		
         foreach($custom_fields as $cf){
             /**
              * Actually, the only way to refer to the cuomst fields is through
              * a UUID assigned to that field, an arbitrary number, which for
              * our puposes is defined earlier in the script.
              */
-print_r(ZIP_CODE_FIELD_ID);			 
-            if($cf['custom_field_id'] == ZIP_CODE_FIELD_ID){
-print_r("Found a thing matching ZIP CODE");				
+            $log->write("Searching custom fields for contact");
+            if($cf['custom_field_id'] == ZIP_CODE_FIELD_ID){			
                 $zip_code = $cf['value'];
+                $log->write("Found ZIP code: " . $zip_code);
                 break;
             }
         }
 
     }catch(Exception $ex){
-        $log->write("Could not get user data.");        
+        $log->write("Could not get user data.");
+        $log->write(print_r($ex,true));
+        $log->write("FINISH CC ERROR");
     }
 
     return $zip_code;
@@ -641,8 +708,8 @@ print_r("Found a thing matching ZIP CODE");
 /**
  * Get refresh token saved to file.
  */
-function getRefreshToken(){
-    $params = parse_ini_file('config.ini');
+function getRefreshToken(){ 
+    $params = parse_ini_file(__DIR__ . '/config.ini');
     return $params['cc_api_v3_oauth_refresh_token'];    
 }
 
@@ -651,11 +718,11 @@ function getRefreshToken(){
  * Save (new) refresh token to disk.
  */
 function saveRefreshToken($new_refresh_token){
-    $config_file = file_get_contents('config.ini');
+    $config_file = file_get_contents(__DIR__ . '/config.ini');
     $matches = array();
     preg_match('/cc_api_v3_oauth_refresh_token=(.*)/', $config_file, $matches);
     $config_file = str_replace($matches[1], $new_refresh_token, $config_file);
-    file_put_contents('config.ini', $config_file);
+    file_put_contents(__DIR__ . '/config.ini', $config_file);
     
 }
 
@@ -711,7 +778,89 @@ function fetchAccessToken(){
     return $access_token;
 }
 
+function getV3ContactID($contact, $access_token_v3){
+    $url = "https://api.cc.email/v3/contacts/contact_id_xrefs?sequence_ids=" . $contact->id;
+    $contact_id = null;
+    global $log;
+    
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token_v3,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        
+ 
 
+        $contact = curl_exec($ch);
+        curl_close($ch);
+		
+        $obj = json_decode($contact);
+        $obj_arr = $obj->xrefs;
+        if(count($obj_arr) > 0){
+            $contact_id = $obj_arr[0]->contact_id;
+        }
+
+ 
+    
+    }catch(Exception $ex){
+        $log->write("Failed getting v3 contact");
+        $log->write(print_r($ex,true));
+        $log->write("FINISH CC ERROR");
+    }
+    
+    return $contact_id;       
+    
+}
+
+function addUserToList($list,$contact_id,$access_token_v3){
+
+    $url = 'https://api.cc.email/v3/activities/add_list_memberships';
+    global $log;
+
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token_v3,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        
+        curl_setopt($ch, CURLOPT_POSTFIELDS,     '{
+      "source": {
+        "contact_ids": [
+          "' . $contact_id . '"
+        ]
+      },
+      "list_ids": [
+        "' . $list->list_id . '"
+      ]
+    }'); 
+
+    $result = curl_exec($ch);
+
+    curl_close($ch);
+
+ 
+    
+    }catch(Exception $ex){
+        $log->write("Error adding user to list");
+        $log->write(print_r($ex,true));
+        $log->write("FINISH CC ERROR");
+    }
+    
+    return null;	
+}
 
 
 
