@@ -177,6 +177,7 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
     $start_size_of_list = -1;    
     $contact_list_not_yet_emailed = array();
     $contact_list_to_mail = array();
+    $today = new DateTime();
     
     $log->write("Starting the following campaign:");
     $log->write(print_r($campaign, true));
@@ -246,7 +247,7 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
          */
 
 
-        if(!contactMailed($contact,$campaign->getMailerList()) && !in_array(getContactEmail($contact), $blacklist) && ( $contact->lat != -1 && $contact->long != -1 ) && !isContactRemoved($contact) ){
+        if(!contactMailed($contact,$campaign->getMailerListV3()) && !in_array(getContactEmail($contact), $blacklist) && ( $contact->lat != -1 && $contact->long != -1 ) && !isContactRemoved($contact) ){
             
             $log->write("Contact is candidate for mailing");
             $threshold_day = getThreshholdDate($contact->lat, $contact->long, $campaign);
@@ -260,7 +261,7 @@ function handleNotifications($cc, $cc_access_token, $access_token_v3, $campaign,
              * days at the time the script is run, so the time to contact the user is
              * now.
              */
-            if($threshold_day != null){
+            if($threshold_day != null && $threshold_day >= $today){
                 $log->write("Threshold date set, adding user to list to mail");
                 /**
                  * Constant Contact API will fail if there's any data fields it
@@ -532,7 +533,7 @@ function getThreshholdDate($latitude, $longitude, $pest_model){
         curl_close($ch);
 
         $json = json_decode($result, true);
-        $log->write($json);
+        $log->write(print_r($json));
         if(array_key_exists('dateAgddThresholdMet',$json) && !$json['dateAgddThresholdMet'] == null){
             $threshold_date = new DateTime($json['dateAgddThresholdMet']);
         }
@@ -638,8 +639,8 @@ function getContactLocations(&$contact_list, $access_token_v3){
  */
 function contactMailed($contact, $the_list){
     $is_mailed = false;
-    foreach($contact->lists as $list){
-        if($list->id == $the_list->id){
+    foreach($contact->list_ids_v3 as $list){
+        if($list == $the_list->list_id){
             $is_mailed = true;
             break;
         }
@@ -658,7 +659,7 @@ function getZipCodeForContact(&$contact, $access_token_v3){
     global $log;
     $zip_code = null;
     $email = urlencode(getContactEmail($contact));	
-    $url = 'https://api.cc.email/v3/contacts?status=all&email=' . $email . '&include=custom_fields&include_count=false';	
+    $url = 'https://api.cc.email/v3/contacts?status=all&email=' . $email . '&include=custom_fields,list_memberships&include_count=false';	
     
     $log->write("Searching for zip on following contact:");
     $log->write(print_r($contact, true));
@@ -680,7 +681,10 @@ function getZipCodeForContact(&$contact, $access_token_v3){
 
         $json = json_decode($result, true);
         
-        $custom_fields = $json['contacts'][0]['custom_fields'];		
+        $custom_fields = $json['contacts'][0]['custom_fields'];
+        $lists = $json['contacts'][0]['list_memberships'];
+        
+        $contact->list_ids_v3 = $lists;
         foreach($custom_fields as $cf){
             /**
              * Actually, the only way to refer to the cuomst fields is through
