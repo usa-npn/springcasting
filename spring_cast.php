@@ -59,7 +59,7 @@ use Ctct\Components\Contacts\Contact;
 use Ctct\Components\Contacts\EmailAddress;
 use Ctct\Components\Contacts\CustomField;
 
-$params = parse_ini_file('config.ini');
+$params = parse_ini_file(__DIR__ . '/config.ini');
 $log = new OutputFile(__DIR__ . "/output.txt");
 
 $cc = new ConstantContact($params['cc_api_key']);
@@ -97,6 +97,7 @@ try{
     $log->write(print_r($ex, true));
     die();
 }
+$log->write("Connected to database without incident");
 
 
 handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
@@ -193,6 +194,8 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
          */
         $log->write("Days diff: " . $num_days);
         if($six_day != null && !empty($six_day) && $num_days >= 0 && $num_days <= THRESHOLD){
+$log->write("Adding this station:");
+$log->write(print_r($station,true));
             
             /**
              * With a station that has popped, the first thing to do is change
@@ -214,6 +217,9 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
              * In our list of people to email, add the person who's created the
              * site.
              */
+$log->write("Adding this person:");
+$log->write(print_r($row,true));
+
             addPersonToContactList($row['Person_ID'], $row['email'], $email_list, $station);
             
             /**
@@ -233,6 +239,8 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
                 $c = count($admin_emails);
                 $log->write("List of admins to inspect: " . print_r($admin_emails, true));
                 for($i=0;$i<$c;$i++){
+$log->write("Adding this person:");
+$log->write(print_r($row,true));
                     addPersonToContactList($admin_ids[$i], $admin_emails[$i], $email_list, $station);
                 }
                 
