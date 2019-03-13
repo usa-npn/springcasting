@@ -533,7 +533,7 @@ function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
     
     if($next){
         $params['next'] = $next;
-    }    
+    }
     
     $the_list = null;
     $lists = $cc->listService->getLists($cc_access_token, $params);
@@ -564,17 +564,22 @@ function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
  * @return Campaign
  */
 function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
+
     $params = array();
     
     if($next){
         $params['next'] = $next;
-    }
+    }else{
+		$params['status'] = 'SENT';
+	}
+
     $campaigns = $cc->emailMarketingService->getCampaigns($cc_access_token, $params);
     $the_campaign = null;
     /*
      * The CC API doesn't allow you to filter campaigns by name, so have to iterate
      * through each one to find it.
      */
+
     foreach($campaigns->results as $campaign){
 
         if($campaign->name == $campaign_name){
@@ -582,7 +587,7 @@ function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
             break;
         }
     }
-    
+  
     if($the_campaign == null && $campaigns->next != null){
         $the_campaign = getCampaign($cc, $cc_access_token, $campaign_name, $campaigns->next);
     }
