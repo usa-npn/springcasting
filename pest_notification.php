@@ -138,8 +138,8 @@ $all_campaigns[] = new PestCampaign("Winter Moth Notification 2", "Winter Moth P
 define("LILAC_BORER_THRESHOLD1",408);
 define("LILAC_BORER_THRESHOLD2",500);
 
-$all_campaigns[] = new PestCampaign("Lilac Borer Notification 1", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 1", LILAC_BORER_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
-$all_campaigns[] = new PestCampaign("Lilac Borer Notification 2", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 2", LILAC_BORER_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Lilac Borer Notification 1 v2", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 1 v2", LILAC_BORER_THRESHOLD1, STANDARD_BASE_TEMP, "simple", "January 1");
+$all_campaigns[] = new PestCampaign("Lilac Borer Notification 2 v2", "Lilac Borer (aka Ash Borer) Pheno Forecast", "Lilac Borer Mailer 1 v2", LILAC_BORER_THRESHOLD2, STANDARD_BASE_TEMP, "simple", "January 1");
 
 
 
