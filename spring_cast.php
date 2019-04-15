@@ -26,6 +26,15 @@ define('BLOOM_CAMPAIGN_NAME', 'Springcasting 2019 Bloom Prediction');
 
 
 /**
+ * PLEASE NOTE IF YOU WANT TO CONTINUE TO USE THIS CODE IN 2020 THEN THESE VALUES
+ * NEED TO BE UPDATED. STRONGLY RECOMMEND UPGRADING TO VERSION 3 OF THE CC API.
+ */
+define('LEAF_CAMPAIGN_ID',1131984751946);
+define('BLOOM_CAMPAIGN_ID',1131984752507);
+
+
+
+/**
  * Maximum number of days in the future a springcasting event can be before we
  * will contact users.
  */
@@ -100,12 +109,12 @@ try{
 $log->write("Connected to database without incident");
 
 
-handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
+handleNotifications($cc, $cc_access_token, LEAF_EVENT, LEAF_PHENOPHASE, LEAF_LIST_NAME, LEAF_CAMPAIGN_NAME, LEAF_CAMPAIGN_ID, $mysql, $pgsql, $log, $debug);
 
-handleNotifications($cc, $cc_access_token, BLOOM_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, $mysql, $pgsql, $log, $debug);
+handleNotifications($cc, $cc_access_token, BLOOM_EVENT, BLOOM_PHENOPHASE, BLOOM_LIST_NAME, BLOOM_CAMPAIGN_NAME, BLOOM_CAMPAIGN_ID, $mysql, $pgsql, $log, $debug);
 
 
-function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, &$mysql, &$pgsql, &$log, &$debug){
+function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_name, $campaign_name, $campaign_id, &$mysql, &$pgsql, &$log, &$debug){
     
     $the_list = null;
     $the_campaign = null;
@@ -135,11 +144,20 @@ function handleNotifications($cc, $cc_access_token, $event, $phenphase, $list_na
             throw new Exception ("Could not find the list");
         }
         
-        
+        /*
+         * Commenting this out because the CC V2 API is broken and will no longer
+         * return the campaigns once they've been sent out so many times.
+         * 
+         * Therefore, I'm keeping this block of code for posterity but the added
+         * parameter to this function campaign_id is what will be used to schedule the campaign(s).
+         */
+        /*
         $the_campaign = getCampaign($cc, $cc_access_token, $campaign_name);
         if($the_campaign == null){
             throw new Exception("Could not find the campaign");
         }
+         * 
+         */
         
         $contact_list = array();
         $contact_list = getContacts($cc, $cc_access_token, $the_list, $contact_list, $next=null);
@@ -350,10 +368,11 @@ die();
             $schedule = new Schedule();
             $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s');
                 
-            $cc->campaignScheduleService->addSchedule($cc_access_token, $the_campaign->id, $schedule); 
+            $cc->campaignScheduleService->addSchedule($cc_access_token, $campaign_id, $schedule); 
         }
 
     }catch(Exception $ex){
+        $log->write("Failed to schedule the campaign");
         $log->write(print_r($ex, true));
     }    
 }
