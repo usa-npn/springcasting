@@ -303,7 +303,7 @@ die();
      * that information and send it to CC.
      */
     foreach($email_list as $entity){
-        
+        usleep(500000);
         if($debug){
             $log->write(print_r($entity,true));
         }
@@ -317,6 +317,7 @@ die();
             $results = $cc->contactService->getContacts($cc_access_token, array('email' => $entity->email));            
             if(count($results->results) == 0){
                 if(!$debug){
+                    $log->write("About to create new contact");
                     createNewContact($entity, $cc, $cc_access_token, $the_list);
                 }
             }else{
@@ -339,6 +340,7 @@ die();
                 $contact->lists[] = $the_list;
                 setContactSitesValue($contact, $entity);
                 if(!$debug){
+                    $log->write("About to update contact");
                     $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_OWNER'));
                 }
             }
