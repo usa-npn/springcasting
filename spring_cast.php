@@ -341,7 +341,18 @@ die();
                 setContactSitesValue($contact, $entity);
                 if(!$debug){
                     $log->write("About to update contact");
-                    $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_OWNER'));
+                    try{
+                        $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_OWNER'));
+                    }catch(Exception $ex){
+                        $log->write("Unable to undate contact with action by owner. Trying as visitor.");
+                        try{
+                            $cc->contactService->updateContact($cc_access_token, $contact, array('action_by' => 'ACTION_BY_VISITOR'));
+                        }catch(Exception $exi){
+                            $log->write("There was a problem adding a person to the day's listing: " . $entity->email . " - " . $the_list->name);
+                            $log->write(print_r($exi, true));
+                            continue;                            
+                        }
+                    }
                 }
             }
         }catch(Exception $ex){
