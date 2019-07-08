@@ -7,7 +7,6 @@
  */
 date_default_timezone_set("UTC");
 
-require_once 'database.php';
 require_once 'output_file.php';
 /**
  * This loads the CC API
@@ -21,183 +20,143 @@ use Ctct\ConstantContact;
 use Ctct\Components\EmailMarketing\Schedule;
 
 
-define('LIST_NAME', 'Reminder to Observe - weekly');
-
-$params = parse_ini_file('config.ini');
+$params = parse_ini_file(__DIR__ . '/config.ini');
 $log = new OutputFile(__DIR__ . "/output.txt");
 
+define('LIST_NAME', 'Bufflegrass Notification');
+define('SECRET_HASH', $params['cc_api_v3_secret_hash']);
 
-$cc = new ConstantContact($params['cc_api_key']);
-$cc_access_token = $params['cc_access_token'];
+define('EMAIL_NOTIFY', $params['email_contact']);
 
+
+$access_token_v3 = fetchAccessToken();
 
 $debug = $params['safe_mode'];
+
+
+$date = new DateTime();
+$campaign_name = "Weekly Bufflegrass notification email for, " . $date->format("Y-m-d hh:mm:ss ii");
+
+
+$campaign_body_create = '
+        {
+  "name": "' . $campaign_name . '",
+  "email_campaign_activities": [
+    {
+      "format_type": 1,
+      "from_name": "Nature\'s Notebook, USA National Phenology Network",
+      "from_email": "erin@usanpn.org",
+      "reply_to_email": "erin@usanpn.org",
+      "subject": "Weekly Bufflegrass Notification",
+      "html_content": "' . getHTML() . '",' .      
+      '"physical_address_in_footer": {
+        "address_line1": "1311 E 4th St.",
+        "city": "Tucson",
+        "country_code": "US",
+        "country_name": "United States",
+        "organization_name": "USA National Phenology Network",
+        "postal_code": "85719",
+        "state_code": "AZ",
+        "state_name": "Arizona"
+      },
+      "document_properties": {        
+        "style_content": ".white{color: #ffffff;}",
+        "text_content": "' .  getTextVersion() . '",
+        "greeting_salutation": "Dear",
+        "greeting_name_type": "F",
+        "greeting_secondary": "Greetings!",
+        "letter_format": "XHTML"
+      }
+    }
+  ]
+}';
+
+
+$campaign = submitCampaignMessageV3($campaign_body_create, $access_token_v3);
+
 
 
 /**
  * Gets the list object from the CC API, as well as comes up with the name
  * of the campaign we're going to create and schedule.
  */
-$list = getCampaignList($cc, $cc_access_token, LIST_NAME);
-$date = new DateTime();
-$campaign_name = "Weekly Reminder email for, " . $date->format("Y-m-d");
+$list = getCampaignListV3(LIST_NAME, $access_token_v3);
 
 
-/**
- * Initialize all fields in the campaign.
- */
-$footer = new MessageFooter();
-$footer->address_line_1 = "1311 E 4th St.";
-$footer->city = "Tucson";
-$footer->country = "US";
-$footer->include_forward_email = true;
-$footer->include_subscribe_link = true;
-$footer->organization_name = "USA National Phenology Network";
-$footer->postal_code = "85721";
-$footer->state = "AZ";
-$footer->forward_email_link_text = "Foward this email";
-$footer->subscribe_link_text = "Subscribe Me!";
+$campaign_body_update = '
+{
 
-$campaign = new Campaign();
-$campaign->email_content = getHTML();
-$campaign->email_content_format = "XHTML";
-$campaign->from_email = "erin@usanpn.org";
-$campaign->from_name = "Nature's Notebook, USA National Phenology Network";
-$campaign->greeting_salutations = "Dear";
-$campaign->greeting_string = "Greetings!";
-$campaign->greeting_name = "FIRST_NAME";
-$campaign->is_permission_reminder_enabled = false;
-$campaign->is_view_as_webpage_enabled = false;
-$campaign->message_footer = $footer;
-$campaign->name = $campaign_name;
-$campaign->reply_to_email = "erin@usanpn.org";
-$campaign->subject = "It's time to make your Nature's Notebook observations for the week!";
-$campaign->template_type = "CUSTOM";
-$campaign->text_content = getTextVersion();
-$campaign->sent_to_contact_lists[] = $list;
+      "format_type": 1,
+      "from_name": "Nature\'s Notebook, USA National Phenology Network",
+      "from_email": "erin@usanpn.org",
+      "reply_to_email": "erin@usanpn.org",
+      "subject": "Weekly Bufflegrass Notification",
+      "campaign_id": "' . $campaign->campaign_id . '",
+      "campaign_activity_id": "' . $campaign->campaign_activities[0]->campaign_activity_id . '",
+      "role": "primary_email",
+      "current_status": "Draft",
+      "contact_list_ids": ["'. $list->list_id . '"]
 
-/**
- * Then create the campaign on the remote server and if we're not in debug
- * mode, go ahead and schedule it as well.
- */
-try{
-    $cc->emailMarketingService->addCampaign($cc_access_token, $campaign);
-    /*
-     * We have to get the campaign from the service right after creating it
-     * because otherwise the id field isn't initialized.
-     */
-    $saved_campaign = getCampaign($cc, $cc_access_token, $campaign_name);
-    if(!$debug){
+}';
 
-        $date = new DateTime();
-        $date->add(new DateInterval('PT25M'));
-        $schedule = new Schedule();
-        $schedule->scheduled_date = $date->format('Y-m-d\TH:i:s');
 
-        $cc->campaignScheduleService->addSchedule($cc_access_token, $saved_campaign->id, $schedule); 
-    }
+addContactListToCampaignV3($campaign_body_update, $campaign->campaign_activities[0]->campaign_activity_id, $access_token_v3);
 
-} catch (Exception $ex) {
-    
-    print_r($ex);
-    die();
-}
+scheduleCampaignV3($campaign->campaign_activities[0]->campaign_activity_id, $access_token_v3);
 
 
 
 
-function getCampaignList($cc, $cc_access_token, $list_name, $next=null){
-    
-    $params = array();
-    
-    if($next){
-        $params['next'] = $next;
-    }    
-    
-    $the_list = null;
-    $lists = $cc->listService->getLists($cc_access_token, $params);
-    /*
-     * The CC API doesn't allow you to filter lists by name, so have to iterate
-     * through each one to find it.
-     */
-    foreach($lists as $list){
-        if($list->name == $list_name){
-            $the_list = $cc->listService->getList($cc_access_token, $list->id);
-            break;
-        }
-    }
-    
-    if($the_list == null && $lists->next != null){
-        $the_list = getCampaignList($cc, $cc_access_token, $list_name, $lists->next);
-    }    
-    
-    return $the_list;
-}
 
-
-function getCampaign($cc, $cc_access_token, $campaign_name, $next=null){
-    $params = array();
-    
-    if($next){
-        $params['next'] = $next;
-    }
-    $campaigns = $cc->emailMarketingService->getCampaigns($cc_access_token, $params);
-    $the_campaign = null;
-    /*
-     * The CC API doesn't allow you to filter campaigns by name, so have to iterate
-     * through each one to find it.
-     */
-    foreach($campaigns->results as $campaign){
-
-        if($campaign->name == $campaign_name){
-            $the_campaign = $cc->emailMarketingService->getCampaign($cc_access_token, $campaign->id);
-            break;
-        }
-    }
-    
-    if($the_campaign == null && $campaigns->next != null){
-        $the_campaign = getCampaign($cc, $cc_access_token, $campaign_name, $campaigns->next);
-    }
-    
-    return $the_campaign;    
-}
 
 
 
 function getTextVersion(){
-    return "<text>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Your weekly reminder to observe
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Dear \$SUBSCRIBER.FIRSTNAME,
-It's time to get outside and check on the plants and animals that you registered
- in Nature's Notebook!
-During the seasons when your plants and animals are active, we recommend making 
-observations 2-3 times per week. You can observe less frequently during the times
-of year when your plants are dormant or animals are absent.
-Remember that the \"no\" observations that you report when you do not see anything
- happening are just as important as the \"yes\" observations! It's especially important
-to document those \"no\" observations right before you capture the first yes and after
-you capture the last yes. These help the researchers and resource managers who use
-your data to better pinpoint the start, duration, and end of a particular phenophase.
-Thank you so much for being part of Nature's Notebook. We couldn't do it without
- you.
-Happy Observing!
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Contact
-
-Erin Posthumus
-Outreach Coordinator
-<a href=\"mailto:erin@usanpn.org\" track=\"on\" >erin@usanpn.org</a>
-<a href=\"https://www.usanpn.org/about/staff#erin\" track=\"on\" >bio</a>
-<a href=\"http://www.naturesnotebook.org\" track=\"on\" >www.naturesnotebook.org</a>
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- Copyright © 2017. All Rights Reserved.</text>";
+    return "<text>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\n
+\\n        
+*********************************\\n
+\\n
+Buffelgrass Pheno Forecast\\n
+\\n
+*********************************\\n
+\\n
+ \\n
+\\n
+See the Buffelgrass Phenoforecast for where to expect green now:\\n
+\\n
+link\\n
+\\n
+ \\n
+\\n
+See the Buffelgrass Phenoforecast for where to expect green in 1-2 weeks:\\n
+\\n
+link\\n
+\\n
+\\n
+\\n
+Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.8 inch threshold is more appropriate.\\n
+\\n
+Check for green up at your site now and let us know what you see! Report your observations in Nature's Notebook:\\n
+\\n
+https://www.naturesnotebook.org\\n
+\\n
+Or give us quick feedback:\\n
+\\n
+link\\n
+\\n
+\\n
+\\n
+Explore the forecast maps in the Visualization Tool:\\n
+\\n
+link\\n
+\\n
+\\n
+\\n
+Learn more about these forecasts:\\n
+\\n
+https://www.usanpn.org/data/forecasts/buffelgrass\\n
+\\n
+</text>";
 }
 
 
@@ -211,186 +170,1217 @@ Outreach Coordinator
  * Some massaging had to be done, mainly self-closing HTML tags needed to be made
  * explicitely so, because the service would not validate them.
  */
+/*
 function getHTML(){
-    return "<html><body><div align=\"center\">
- <table class=\"m_-3170420819794869607m_-1274026690516571946OuterBGColor\" style=\"background-color:#808080\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#808080\">
- <tbody><tr>
- <td class=\"m_-3170420819794869607m_-1274026690516571946Body\" style=\"padding:24px 24px 24px 24px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"center\">
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946TopMarginBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
- <table class=\"m_-3170420819794869607m_-1274026690516571946TopMarginWidth\" style=\"width:600px\" border=\"0\" width=\"1\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946TopMargin\" style=\"padding:0px 0px 0px 0px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
- <table id=\"m_-3170420819794869607m_-1274026690516571946content_LETTER.BLOCK1\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tbody><tr><td style=\"color:#000000\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"center\"><img name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.1106\" src=\"https://ci3.googleusercontent.com/proxy/ErL5r9ipt3rYD7xAvDtI-SN8-Baw4w-tqTKdYc6-7xTC5brNxHMSUKQB-WxIThMpY24FzoSq0BD9-gSfxw183TpVsrjiS_zN7Krmxqf072H2Aehm20SlAcEC9cD_hJK-s0uyN41w2CBHgoBK6MhEpg=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/7c183962-8e5a-48f2-957d-f0db4622e477.png\" class=\"CToWUd\" border=\"0\" vspace=\"0\" width=\"600\" hspace=\"0\"/></td></tr></tbody></table>
-
- 
-
- </td>
-
- </tr>
- </tbody></table>
- </td>
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946MainWidth\" style=\"width:600px\" border=\"0\" width=\"1\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td class=\"m_-3170420819794869607m_-1274026690516571946OuterBorderBGColor m_-3170420819794869607m_-1274026690516571946OuterBorder\" style=\"background-color:#f1f1e2;padding:1px 1px 1px 1px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" bgcolor=\"#F1F1E2\" align=\"center\">
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946InnerBGColor\" style=\"background-color:#ffffff\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#ffffff\">
- <tbody><tr>
- <td rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"center\">
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946TopBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946Top\" style=\"padding:0px 0px 0px 0px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
- <table style=\"background-color:#459524\" id=\"m_-3170420819794869607m_-1274026690516571946content_LETTER.BLOCK3\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#459524\"><tbody><tr><td style=\"color:#ffffff;text-align:left;font-size:14pt;font-family:Arial,Helvetica,sans-serif;padding:14px 16px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"left\">
-<div>Your weekly reminder to observe</div>
-</td></tr></tbody></table>
-
- 
-
- <table border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td class=\"m_-3170420819794869607m_-1274026690516571946Spacer\" style=\"line-height:1px;height:1px;padding-bottom:9px\" rowspan=\"1\" colspan=\"1\" height=\"1\" align=\"center\"><img style=\"display:block\" alt=\"\" src=\"https://ci6.googleusercontent.com/proxy/zby7Wbp5IDoInk5bbCRY9WfGCyKxfn2FoANdjAn7r-Yz0x0mnxsS1LXSkDAE3cfnEaqVy_UhiRCZz66YfpbUugxNONoli0IeGOfvXpM=s0-d-e1-ft#http://img.constantcontact.com/letters/images/sys/S.gif\" class=\"CToWUd\" border=\"0\" vspace=\"0\" width=\"5\" hspace=\"0\" height=\"1\" /></td>
- </tr>
- </tbody></table><table style=\"display:table\" id=\"m_-3170420819794869607m_-1274026690516571946content_LETTER.BLOCK6\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tbody><tr><td style=\"color:#000000;font-family:Arial,Helvetica,sans-serif;padding:5px 10px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"left\">
-<div>
-<div style=\"color:#4f4c4c;font-size:12pt\"><b>Dear \$SUBSCRIBER.FIRSTNAME,</b></div>
-<img class=\"m_-3170420819794869607m_-1274026690516571946cc-image-resize CToWUd\" name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.2144\" src=\"https://ci6.googleusercontent.com/proxy/AnTiCIcRY2c0ik3OSoJETD09rTGy8XTkHzAtdlm93NWRXCmGh9cZ9U9Vs1LpAK1xoXcOiKzKYdXKKNmeSgE2ktTtTsL9PJJ_ySrWeS8QwywdM_0709xZqKuDAfD_GF7BrmbQqYqKHvgm5-9Lg5y13A=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/319dd19c-768e-4f87-9f30-03b54a4ef5c0.png\" border=\"0\" vspace=\"10\" width=\"173\" hspace=\"10\" height=\"82\" align=\"right\" /></div>
-<div><br /><div style=\"color:#666666;font-size:12pt\"><span>It's time to get outside and check on the plants and animals that you registered&nbsp;</span><span style=\"font-size:12pt\">in&nbsp;</span><em style=\"font-size:12pt\">Nature's Notebook</em><span style=\"font-size:12pt\">!</span></div><div style=\"color:#666666;font-size:12pt\"><span><br /></span></div><div style=\"color:#666666;font-size:12pt\"><span>During the seasons when your plants and animals are active, we recommend making observations <strong>2-3 times per week</strong>. You can observe less frequently during the times of year when your plants are dormant or animals are absent.&nbsp;</span></div><div style=\"color:#666666;font-size:12pt\"><span><br /></span></div><div style=\"color:#666666;font-size:12pt\"><span>Remember that the <strong>\"no\" observations</strong> that you report when you do not see anything happening are just as important as the \"yes\" observations! It's especially important to document those \"no\" observations right before you capture the first ye</span><span style=\"font-size:12pt\">s and after you capture the last yes. These help the researchers and resource managers who use your data to better pinpoint the start, duration, and end of a particular phenophase.</span></div><div style=\"color:#666666;font-size:12pt\"><img class=\"m_-3170420819794869607m_-1274026690516571946cc-image-resize CToWUd\" name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.2140\" src=\"https://ci3.googleusercontent.com/proxy/3wN1uRUr-cKmYc8S0QLTPi9kdjfYFrEmm4V8mCQN_6RORhrXe66-TOe_qKJMWzlOMq4LaobzVJNOZUw5qcpCcP7sdUZStOWaR0fcAJTZS1uuI7RhHYZuTfR4VqBBfs8P5URKSEDVlU8d5_lm8QDzhg=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/1c7ac8de-e30f-4446-ae34-b0b17c5cbd8c.png\" border=\"0\" vspace=\"15\" width=\"90\" hspace=\"15\" height=\"115\" align=\"left\" /></div><div style=\"color:#666666;font-size:12pt\"><span><br /></span></div><div style=\"color:#666666;font-size:12pt\"><span><br /></span></div><div style=\"color:#666666;font-size:12pt\"><span>Thank you so much for being part of <em>Nature's Notebook. </em>We couldn't do it without you.</span></div><div style=\"color:#666666;font-size:12pt\"><span><br /></span></div><div style=\"color:#666666;font-size:12pt\"><span>Happy Observing!&nbsp;</span></div><div style=\"color:#666666;text-align:center\" align=\"center\"><span style=\"font-size:14.6667px\"> <img name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.2143\" src=\"https://ci4.googleusercontent.com/proxy/KSHGY1-HHEA9bzZj7mkBlzbL5Wc1cx_IMVbfnUYsV2fN1WnZZu3wo3jzGGr4VOvzf2YpuW1z-NxuWxeMy1eYdZsLluEy3uOJWvkGtJWWPLBLcjoje6iBo8zq3Ld8-J8Z8VyulbUYLXHZNQCHHPv9wQ=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/f46a4068-65fc-47ea-a024-c9905890d04d.jpg\" class=\"CToWUd a6T\" tabindex=\"0\" border=\"0\" vspace=\"5\" width=\"557\" hspace=\"5\" height=\"217\" /><div class=\"a6S\" dir=\"ltr\" style=\"opacity: 0.01; left: 919.5px; top: 963.5px;\"><div id=\":1q6\" class=\"T-I J-J5-Ji aQv T-I-ax7 L3 a5q\" role=\"button\" tabindex=\"0\" aria-label=\"Download attachment \" data-tooltip-class=\"a1V\" data-tooltip=\"Download\"><div class=\"aSK J-J5-Ji aYr\"></div></div></div> &nbsp;</span></div></div>
-</td></tr></tbody></table></td>
-
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946TopFullColumnBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946TopFullColumn\" style=\"padding:0px 10px 0px 10px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
- 
-
- </td>
-
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946MultiColumnSplitBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946MainColumnBGColor\" style=\"background:transparent\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
- <table border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946MainColumn\" style=\"padding:0px 10px 0px 10px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
- 
-
- 
-
- 
-
- <table border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td class=\"m_-3170420819794869607m_-1274026690516571946Spacer\" style=\"line-height:1px;height:1px;padding-bottom:9px\" rowspan=\"1\" colspan=\"1\" height=\"1\" align=\"center\"><img style=\"display:block\" alt=\"\" src=\"https://ci6.googleusercontent.com/proxy/zby7Wbp5IDoInk5bbCRY9WfGCyKxfn2FoANdjAn7r-Yz0x0mnxsS1LXSkDAE3cfnEaqVy_UhiRCZz66YfpbUugxNONoli0IeGOfvXpM=s0-d-e1-ft#http://img.constantcontact.com/letters/images/sys/S.gif\" class=\"CToWUd\" border=\"0\" vspace=\"0\" width=\"5\" hspace=\"0\" height=\"1\" /></td>
- </tr>
- </tbody></table>
-
- </td>
-
- </tr>
- </tbody></table>
- </td>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946SideColumnBGColor\" style=\"background:transparent\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"center\">
- <table border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946SideColumn\" style=\"padding:0px 10px 0px 10px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
- </td>
- </tr>
- </tbody></table>
- <table class=\"m_-3170420819794869607m_-1274026690516571946SideColumnWidth\" style=\"width:210px\" border=\"0\" width=\"1\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td style=\"line-height:1px;height:1px\" rowspan=\"1\" colspan=\"1\" align=\"center\"><img style=\"display:block\" alt=\"\" src=\"https://ci6.googleusercontent.com/proxy/zby7Wbp5IDoInk5bbCRY9WfGCyKxfn2FoANdjAn7r-Yz0x0mnxsS1LXSkDAE3cfnEaqVy_UhiRCZz66YfpbUugxNONoli0IeGOfvXpM=s0-d-e1-ft#http://img.constantcontact.com/letters/images/sys/S.gif\" class=\"CToWUd\" border=\"0\" vspace=\"0\" width=\"5\" hspace=\"0\" height=\"1\" /></td>
- </tr>
- </tbody></table>
- </td>
-
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946BottomFullColumnBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946BottomFullColumn\" style=\"padding:0px 12px 0px 12px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
-
- </td>
-
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946BottomBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946Bottom\" style=\"padding:0px 0px 0px 0px\" rowspan=\"1\" colspan=\"1\" valign=\"middle\" width=\"100%\" align=\"center\">
-
- 
-
- <table style=\"background-color:#323232;display:table\" id=\"m_-3170420819794869607m_-1274026690516571946content_LETTER.BLOCK25\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tbody><tr><td class=\"m_-3170420819794869607m_-1274026690516571946FooterText\" style=\"color:#ffffff;font-size:10pt;font-family:Arial,Helvetica,sans-serif;padding:14px 26px 20px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"left\">
-<div style=\"font-size:16pt\">Contact<br /></div>
-<table style=\"border-style:none;border-width:0px\" width=\"100%\" cellspacing=\"0\" cellpadding=\"3\" align=\"none\"><tbody><tr><td style=\"vertical-align:top;height:95px;color:#001a81;font-size:16px;font-style:normal;width:100px;font-family:Arial,Helvetica,sans-serif;font-weight:bold\" rowspan=\"1\" colspan=\"1\">&nbsp;      <img name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.1210\" src=\"https://ci4.googleusercontent.com/proxy/mrrIWk80KYJ6uEWxeHEqMo0hxsttww1MLv1Jx8tVxGEhYwbGvJ2yEGdcAYQOBt0hfg-jMEK7uUqlGEaFRFKfHUX4Y7gfrtD4XaqS-eFPyAqBaGLV8SfYNDBOks_mh21jZmJihCg0aj3F8DKkDg5VKg=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/be233bac-5862-4667-92e5-4a7d8d1a2485.jpg\" class=\"CToWUd\" border=\"0\" vspace=\"5\" width=\"64\" hspace=\"5\" height=\"76\" /></td><td style=\"vertical-align:top;height:95px;color:#ffffff;font-size:10px;font-style:normal;width:259px;font-family:Arial,Helvetica,sans-serif\" rowspan=\"1\" colspan=\"1\">
-<div style=\"font-size:10pt\">Erin Posthumus</div>
-<div style=\"font-size:10pt\">Outreach Coordinator</div>
-<div style=\"color:#99b826;font-size:10pt\"><a style=\"color:rgb(153,184,38);text-decoration:none;font-weight:bold\" href=\"mailto:erin@usanpn.org\" shape=\"rect\" target=\"_blank\">erin@usanpn.org</a></div>
-<div style=\"color:#99b826;font-size:10pt;text-decoration:underline\"><a style=\"color:rgb(153,184,38);text-decoration:underline;font-weight:bold\" href=\"http://r20.rs6.net/tn.jsp?t=xbypze9ab.0.0.99iy54cab.0&amp;id=preview&amp;r=3&amp;p=https%3A%2F%2Fwww.usanpn.org%2Fabout%2Fstaff%23erin\" shape=\"rect\" alt=\"https://www.usanpn.org/about/staff#erin\" target=\"_blank\" data-saferedirecturl=\"https://www.google.com/url?hl=en&amp;q=http://r20.rs6.net/tn.jsp?t%3Dxbypze9ab.0.0.99iy54cab.0%26id%3Dpreview%26r%3D3%26p%3Dhttps%253A%252F%252Fwww.usanpn.org%252Fabout%252Fstaff%2523erin&amp;source=gmail&amp;ust=1491927827065000&amp;usg=AFQjCNE1z1Cxxwy8hUN4RdwHtmH1CFMNNA\">bio</a></div>
-<div style=\"color:#99b826;font-size:10pt;text-decoration:underline\"><a style=\"color:rgb(153,184,38);text-decoration:underline;font-weight:bold\" shape=\"rect\" href=\"http://r20.rs6.net/tn.jsp?t=xbypze9ab.0.0.99iy54cab.0&amp;id=preview&amp;r=3&amp;p=http%3A%2F%2Fwww.naturesnotebook.org\" alt=\"http://www.naturesnotebook.org\" target=\"_blank\" data-saferedirecturl=\"https://www.google.com/url?hl=en&amp;q=http://r20.rs6.net/tn.jsp?t%3Dxbypze9ab.0.0.99iy54cab.0%26id%3Dpreview%26r%3D3%26p%3Dhttp%253A%252F%252Fwww.naturesnotebook.org&amp;source=gmail&amp;ust=1491927827065000&amp;usg=AFQjCNGve5lC4HXK2oLfQL3y6vFyvdm_lA\">www.naturesnotebook.org</a></div>
-</td><td style=\"vertical-align:bottom;color:#ffffff;width:165px\" rowspan=\"1\" colspan=\"1\"><img name=\"m_-3170420819794869607_m_-1274026690516571946_ACCOUNT.IMAGE.912\" src=\"https://ci4.googleusercontent.com/proxy/LahpzrWqvqyb9ymMDoMRsmlIB7QzTSzM11JhkM9sGI26XG380XKjCdw4KY-ilAjrgvEmqvnv4F0YwS9OI3fYHJIamrH7S2IrXVdBf1Dof5eyYKr-sMYrVhp0SexX1qLyyTt_cqVx2QBgqjxg_G1fEQ=s0-d-e1-ft#https://mlsvc01-prod.s3.amazonaws.com/a532cefb001/3bea8812-ad70-4ea9-932b-83c67c5a7266.gif\" class=\"CToWUd\" border=\"0\" vspace=\"5\" width=\"163\" hspace=\"5\" height=\"53\" align=\"right\" /><br /><br /></td></tr></tbody></table>
-</td></tr></tbody></table>
-
- </td>
-
- </tr>
- </tbody></table>
-
- </td>
- </tr>
- </tbody></table>
- </td>
- </tr>
- </tbody></table>
-
- <table class=\"m_-3170420819794869607m_-1274026690516571946BottomMarginBGColor\" style=\"background:transparent\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
- <td rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
- <table class=\"m_-3170420819794869607m_-1274026690516571946BottomMarginWidth\" style=\"width:600px\" border=\"0\" width=\"1\" cellspacing=\"0\" cellpadding=\"0\">
- <tbody><tr>
-
- <td class=\"m_-3170420819794869607m_-1274026690516571946BottomMargin\" style=\"padding:0px 0px 0px 0px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" width=\"100%\" align=\"center\">
-
- <table id=\"m_-3170420819794869607m_-1274026690516571946content_LETTER.BLOCK26\" border=\"0\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tbody><tr><td class=\"m_-3170420819794869607m_-1274026690516571946OuterText m_-3170420819794869607m_-1274026690516571946Copyright\" style=\"color:#000000;font-size:8pt;font-family:Arial,Helvetica,sans-serif;padding:0px 8px 0px 8px\" rowspan=\"1\" colspan=\"1\" valign=\"top\" align=\"center\">
-<div><br /> Copyright © 2017. All Rights Reserved.<br /> <br /></div>
-</td></tr></tbody></table>
-
- </td>
-
- </tr>
- </tbody></table>
- </td>
- </tr>
- </tbody></table>
-
- </td>
- </tr>
- </tbody></table>
+    return "<html><body><div align=\\\"center\\\">
+ This is a test email.
+ <img src = \\\"https://www.usanpn.org/files/new-site/bee-banner-2.png\\\" />
 </div>
 </body></html>";
+}
+ * 
+ */
+
+
+function sendEmail($msg, $err=false){
+    $msg = wordwrap($msg, 70);
+    $subject = ($err) ? "ERROR in Bufflegrass notification" : "Successful Bufflegrass notification";
+    mail(EMAIL_NOTIFY, $subject, $msg);
+    
+}
+
+
+function scheduleCampaignV3($campaign_activity_id, $access_token){
+    global $log;
+    $log->write("Calling scheduleCampaignV3");
+    
+    $date = new DateTime();
+    $date->add(new DateInterval('PT25M'));    
+    
+    $url = 'https://api.cc.email/v3/emails/activities/' . $campaign_activity_id . '/schedules';
+    
+    $body = '{
+                "scheduled_date": "' . $date->format('Y-m-d\TH:i:s') . '"
+             }'; 
+    
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        
+        $res = curl_exec($ch);
+        curl_close($ch);      
+        
+    } catch (Exception $ex) {
+        $log->write("Failed at scheduling a v3 campaign message.");
+        $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
+        sendEmail("There was a problem in the CC buffelgrass script, scheduling the campaign. Check logs for more info."); 
+    }
+}
+
+function submitCampaignMessageV3($campaign_body, $access_token){
+    global $log;
+    $log->write("Calling getCampaignListV3");
+
+    $url = 'https://api.cc.email/v3/emails';
+    
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $campaign_body);
+        
+        $res = curl_exec($ch);
+        curl_close($ch);        
+        
+    }catch(Exception $ex){
+        $log->write("Failed at submitting a v3 campaign message.");
+        $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
+        sendEmail("There was a problem in the CC buffelgrass script, creating the campaign. Check logs for more info.");
+    }
+    
+    return json_decode($res);
+    
+}
+
+function addContactListToCampaignV3($campaign_body_update, $campaign_activity_id, $access_token){
+        
+    global $log;
+    $log->write("Calling addContactListToCampaignV3");
+    
+
+    $url = 'https://api.cc.email/v3/emails/activities/' . $campaign_activity_id;
+    
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+       curl_setopt($ch, CURLOPT_POSTFIELDS,$campaign_body_update);
+        
+        $res = curl_exec($ch);
+        curl_close($ch);        
+        
+    }catch(Exception $ex){
+        $log->write("Failed at adding list to campaign.");
+        $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
+        sendEmail("There was a problem in the CC buffelgrass script, adding the contact list to the campaign. Check logs for more info.");        
+    }
+    
+    return $res;
+
+}
+
+
+function getCampaignListV3($list_name, $access_token){
+    
+    global $log;
+    $log->write("Calling getCampaignListV3");
+    $log->write($list_name);
+    
+    $url = 'https://api.cc.email/v3/contact_lists?include_count=false';
+	$the_list = null;
+
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Cache-Control: no-cache',
+            'Authorization: Bearer ' . $access_token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ));
+        
+ 
+
+        $lists = curl_exec($ch);
+        curl_close($ch);
+		
+        $lists = json_decode($lists);
+
+        foreach($lists->lists as $list){
+            if($list->name == $list_name){
+                    $the_list = $list;
+                    break;
+            }
+        }
+
+ 
+    
+    }catch(Exception $ex){
+        $log->write("Failed at getting v3 list");
+        $log->write(print_r($ex, true));
+        $log->write("FINISH CC ERROR");
+        sendEmail("There was a problem in the CC buffelgrass script, GETing the contact list. Check logs for more info.");
+    }
+    
+    return $the_list;
+}
+
+
+
+/**
+ * Get refresh token saved to file.
+ */
+function getRefreshToken(){ 
+    $params = parse_ini_file(__DIR__ . '/config.ini');
+    return $params['cc_api_v3_oauth_refresh_token'];    
+}
+
+
+/**
+ * Save (new) refresh token to disk.
+ */
+function saveRefreshToken($new_refresh_token){
+    $config_file = file_get_contents(__DIR__ . '/config.ini');
+    $matches = array();
+    preg_match('/cc_api_v3_oauth_refresh_token=(.*)/', $config_file, $matches);
+    $config_file = str_replace($matches[1], $new_refresh_token, $config_file);
+    file_put_contents(__DIR__ . '/config.ini', $config_file);
+    
+}
+
+
+
+/**
+ * V3 of CC API uses OAuth which means that access tokens expire after
+ * one day and have to be refreshed with a refresh token (which expires after
+ * it is used). Workflow is to get existing refresh token; execute new access
+ * token request; Save new refresh token to disk; Return retrieved access token.
+ */
+function fetchAccessToken(){
+    global $log;
+    $refresh_token = getRefreshToken();
+    $new_refresh_token = null;
+    $access_token = null;
+    $url = 'https://idfed.constantcontact.com/as/token.oauth2?refresh_token=' . $refresh_token . '&grant_type=refresh_token';
+    try{
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'application/x-www-form-urlencoded',
+            'authorization: Basic ' . SECRET_HASH
+        ));   
+                
+        $result = curl_exec($ch);
+        curl_close($ch);
+
+        $json = json_decode($result, true);
+        if($json['access_token']){
+            $access_token = $json['access_token'];            
+        }else{
+            throw new Exception("Could not parse access token");
+        }
+        
+        if($json['refresh_token']){
+            $new_refresh_token = $json['refresh_token'];
+        }else{
+            throw new Exception("Could not parse refresh token");
+        }
+        
+    }catch(Exception $ex){
+        $log->write("Failed fetching access token");
+        $log->write("Refresh token is: " . $refresh_token);
+        $log->write(print_r($ex, true));
+        $log->write("Terminating script.");
+        sendEmail("There was a problem in the CC buffelgrass script, getting an access token. Check logs for more info.");        
+        die();
+    }
+    
+    saveRefreshToken($new_refresh_token);
+    
+    return $access_token;
+}
+
+
+function getHTML(){
+return "
+<html>
+<head>
+
+<!--[if gte mso 9]>
+<style id=\\\"ol-styles\\\">
+/* OUTLOOK-SPECIFIC STYLES */
+li {
+text-indent: -1em;
+padding: 0;
+margin: 0;
+line-height: 1.2;
+}
+ul, ol {
+padding: 0;
+margin: 0 0 0 40px;
+}
+p {
+margin: 0;
+padding: 0;
+margin-bottom: 0;
+}
+sup {
+font-size: 85% !important;
+}
+sub {
+font-size: 85% !important;
+}
+</style>
+<![endif]-->
+<style id=\\\"template-styles-head\\\" data-premailer=\\\"ignore\\\">
+.footer-main-width {
+width: 590px!important;
+max-width: 590px;
+}
+table {
+border-collapse: collapse;
+table-layout: fixed;
+}
+.bgimage {
+table-layout: auto;
+}
+.preheader-container {
+color: transparent;
+display: none;
+font-size: 1px;
+line-height: 1px;
+max-height: 0px;
+max-width: 0px;
+opacity: 0;
+overflow: hidden;
+}
+/* LIST AND p STYLE OVERRIDES */
+.editor-text p {
+margin: 0;
+padding: 0;
+margin-bottom: 0;
+}
+.editor-text ul,
+.editor-text ol {
+padding: 0;
+margin: 0 0 0 40px;
+}
+.editor-text li {
+padding: 0;
+margin: 0;
+line-height: 1.2;
+}
+/* ==================================================
+CLIENT/BROWSER SPECIFIC OVERRIDES
+================================================== */
+/* IE: correctly scale images with w/h attbs */
+img {
+-ms-interpolation-mode: bicubic;
+}
+/* Text Link Style Reset */
+a {
+text-decoration: underline;
+}
+/* iOS: Autolink styles inherited */
+a[x-apple-data-detectors] {
+text-decoration: underline !important;
+font-size: inherit !important;
+font-family: inherit !important;
+font-weight: inherit !important;
+line-height: inherit !important;
+color: inherit !important;
+}
+/* FF/Chrome: Smooth font rendering */
+.editor-text, .MainTextFullWidth {
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+}
+/* Gmail/Web viewport fix */
+u + .body .template-body {
+width: 590px;
+}
+@media only screen and (max-width:480px) {
+u + .body .template-body {
+width: 100% !important;
+}
+}
+/* Office365/Outlook.com image reset */
+[office365] button, [office365] .divider-base div, [office365] .spacer-base div, [office365] .editor-image div { display: block !important; }
+</style>
+<style>@media only screen and (max-width:480px) {
+table {
+border-collapse: collapse;
+}
+.main-width {
+width: 100% !important;
+}
+.mobile-hidden {
+display: none !important;
+}
+td.OneColumnMobile {
+display: block !important;
+}
+.OneColumnMobile {
+width: 100% !important;
+}
+td.editor-col .editor-text {
+padding-left: 20px !important; padding-right: 20px !important;
+}
+td.editor-col .editor-image.editor-image-hspace-on td {
+padding-left: 20px !important; padding-right: 20px !important;
+}
+td.editor-col .editor-button-container {
+padding-left: 20px !important; padding-right: 20px !important;
+}
+td.editor-col .editor-social td {
+padding-left: 20px !important; padding-right: 20px !important;
+}
+td.editor-col .block-margin {
+padding-left: 20px !important; padding-right: 20px !important;
+}
+td.editor-col td.block-margin .editor-text {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.editor-col td.block-margin .editor-image.editor-image-hspace-on td {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.editor-col td.block-margin .editor-button-container {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.editor-col td.block-margin .editor-social td {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+.editor-button td > table tr > td {
+padding: 0px 0px 0px 0px !important;
+}
+.editor-button td > table tr > td td {
+padding: 9px 15px 10px 15px !important;
+}
+.layout {
+padding: 15px 9px 15px 9px !important;
+}
+.layout-container-border {
+padding: 0px 0px 0px 0px !important;
+}
+.layout-container {
+padding: 0px 0px 0px 0px !important;
+}
+.editor-image img {
+width: auto !important; margin-left: auto !important; margin-right: auto !important;
+}
+.editor-image .image-cell {
+padding-bottom: 15px !important;
+}
+.editor-text {
+font-size: 16px !important;
+}
+.section-headline-text {
+font-size: 24px !important;
+}
+.headline-text {
+font-size: 24px !important;
+}
+.subheadline-text {
+font-size: 20px !important;
+}
+.feature {
+padding-top: 0px !important; padding-bottom: 0px !important;
+}
+.layout-outer {
+padding: 0px 20px !important;
+}
+.feature-heading-text {
+font-size: 20px !important;
+}
+.feature-text {
+font-size: 16px !important;
+}
+.split.editor-col {
+margin-top: 0px !important;
+}
+.split.editor-col ~ .split.editor-col {
+margin-top: 10px !important;
+}
+.split-layout-margin {
+padding: 0px 20px !important;
+}
+.article {
+padding-top: 0px !important; padding-bottom: 0px !important;
+}
+.article-heading-text {
+font-size: 20px !important;
+}
+.article-text {
+font-size: 16px !important;
+}
+.social-container {
+text-align: center !important;
+}
+.social-text {
+font-size: 14px !important;
+}
+.cpn-heading-text {
+font-size: 28px !important;
+}
+.editor-cpn-heading-text {
+font-size: 28px !important;
+}
+td.col-divided .editor-col {
+border-right: 0px solid #99DDDC !important; border-bottom: 1px solid #99DDDC !important;
+}
+td.col-divided td.editor-col:last-of-type {
+border-bottom: 0 !important;
+}
+.col-divided {
+padding: 0 20px !important;
+}
+td.col-divided .editor-col .editor-text {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.col-divided .editor-col .editor-image.editor-image-hspace-on td {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.col-divided .editor-col .editor-button-container {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.col-divided .editor-col .editor-social td {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+td.col-divided .editor-col .block-margin {
+padding-left: 0px !important; padding-right: 0px !important;
+}
+.action-block .poll-answer {
+width: 100% !important; display: block !important;
+}
+.action-block .poll-button {
+width: 100% !important;
+}
+div.MobileFooter {
+font-size: 11px !important;
+}
+td.FooterMobile {
+padding: 0px 10px 0px 10px !important;
+}
+td.MainCenter {
+width: 100% !important;
+}
+table.MainSide {
+display: none !important;
+}
+img.MainSide {
+display: none !important;
+}
+td.MainSide {
+display: none !important;
+}
+.rsvp-button-inner {
+padding: 0px 0px 10px 0px !important;
+}
+.rsvp-button-outer {
+width: 100% !important; max-width: 100% !important;
+}
+.action-block .poll-answer {
+width: 100% !important; display: block !important;
+}
+.action-block .poll-button {
+width: 100% !important;
+}
+div.MobileFooter {
+font-size: 11px !important;
+}
+td.FooterMobile {
+padding: 0px 10px 0px 10px !important;
+}
+td.MainCenter {
+width: 100% !important;
+}
+table.MainSide {
+display: none !important;
+}
+img.MainSide {
+display: none !important;
+}
+td.MainSide {
+display: none !important;
+}
+.rsvp-button-inner {
+padding: 0px 0px 10px 0px !important;
+}
+.rsvp-button-outer {
+width: 100% !important; max-width: 100% !important;
+}
+.action-block .poll-answer {
+width: 100% !important; display: block !important;
+}
+.action-block .poll-button {
+width: 100% !important;
+}
+div.MobileFooter {
+font-size: 11px !important;
+}
+td.FooterMobile {
+padding: 0px 10px 0px 10px !important;
+}
+td.MainCenter {
+width: 100% !important;
+}
+table.MainSide {
+display: none !important;
+}
+img.MainSide {
+display: none !important;
+}
+td.MainSide {
+display: none !important;
+}
+.rsvp-button-inner {
+padding: 0px 0px 10px 0px !important;
+}
+.rsvp-button-outer {
+width: 100% !important; max-width: 100% !important;
+}
+.cpn-heading-text {
+font-size: 28px !important;
+}
+.editor-cpn-heading-text {
+font-size: 28px !important;
+}
+.action-block .poll-answer {
+width: 100% !important; display: block !important;
+}
+.action-block .poll-button {
+width: 100% !important;
+}
+div.MobileFooter {
+font-size: 11px !important;
+}
+td.FooterMobile {
+padding: 0px 10px 0px 10px !important;
+}
+td.MainCenter {
+width: 100% !important;
+}
+table.MainSide {
+display: none !important;
+}
+img.MainSide {
+display: none !important;
+}
+td.MainSide {
+display: none !important;
+}
+.rsvp-button-inner {
+padding: 0px 0px 10px 0px !important;
+}
+.rsvp-button-outer {
+width: 100% !important; max-width: 100% !important;
+}
+.footer-main-width {
+width: 100% !important;
+}
+.footer-mobile-hidden {
+display: none !important;
+}
+.footer-mobile-hidden {
+display: none !important;
+}
+.footer-column {
+display: block !important;
+}
+.footer-mobile-stack {
+display: block !important;
+}
+.footer-mobile-stack-padding {
+padding-top: 3px;
+}
+}
+@media only screen and (max-width:320px) {
+.layout {
+padding: 0px 0px 0px 0px !important;
+}
+}
+@media screen {
+@font-face {
+font-family: ''; font-style: normal; font-weight: 400; src: local(''), local(''), url() format(''); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215;
+}
+}
+</style>
+</head>
+<body class=\\\"body\\\" align=\\\"center\\\" style=\\\"width: 100%; min-width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #FFFFFF; margin: 0px; padding: 0px;\\\" bgcolor=\\\"#FFFFFF\\\">
+
+     <table class=\\\"template-body\\\" border=\\\"0\\\" cellpadding=\\\"0\\\" cellspacing=\\\"0\\\" style=\\\"text-align: center; min-width: 100%;\\\" width=\\\"100%\\\">
+        <tr>
+            <td class=\\\"preheader-container\\\">
+                <div>
+                    <div id=\\\"preheader\\\" style=\\\"display: none; font-size: 1px; color: transparent; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;\\\">
+                        <span data-entity-ref=\\\"preheader\\\"></span>
+                    </div>
+
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td class=\\\"template-shell-container\\\" align=\\\"center\\\">
+                <div class=\\\"bgcolor\\\" style=\\\"background-color: #FFFFFF;\\\">
+                    <!--[if gte mso 9]>
+<v:background xmlns:v=\\\"urn:schemas-microsoft-com:vml\\\" fill=\\\"t\\\">
+<v:fill type=\\\"tile\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/backgrounds/sparklesbasic.png\\\" color=\\\"#FFFFFF\\\" ></v:fill>
+</v:background>
+<![endif]-->
+                    <table class=\\\"bgimage\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"background: url('https://imgssl.constantcontact.com/letters/images/backgrounds/sparklesbasic.png') repeat top left;\\\" background=\\\"https://imgssl.constantcontact.com/letters/images/backgrounds/sparklesbasic.png\\\">
+                        <tbody>
+                            <tr>
+                                <td align=\\\"center\\\">
+                                    <table class=\\\"main-width\\\" width=\\\"590\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" align=\\\"center\\\" style=\\\"width: 590px;\\\">
+                                        <tbody>
+                                            <tr>
+                                                <td class=\\\"layout\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding: 15px 5px;\\\">
+                                                    <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" align=\\\"center\\\">
+                                                        <tbody>
+                                                            <tr>
+                                                                <td class=\\\"layout-container-border\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"background-color: #99DDDC; padding: 0px;\\\" bgcolor=\\\"#99DDDC\\\">
+                                                                    <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" align=\\\"center\\\" style=\\\"background-color: #99DDDC;\\\" bgcolor=\\\"#99DDDC\\\">
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class=\\\"layout-container\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"background-color: #ffffff; padding: 0;\\\" bgcolor=\\\"#ffffff\\\">
+                                                                                    <div class=\\\"\\\">
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"spacer editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\">
+                                                                                                        <div class=\\\"gl-contains-spacer\\\">
+                                                                                                            <table class=\\\"editor-spacer\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"spacer-container\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"spacer-base\\\" style=\\\"padding-bottom: 30px; height: 1px; line-height: 1px;\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                                            <div><img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/sys/S.gif\\\" width=\\\"5\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: 1px; width: 5px;\\\" /></div>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(57, 66, 52);\\\" width=\\\"50%\\\" valign=\\\"top\\\" align=\\\"\\\" bgcolor=\\\"394234\\\">
+                                                                                                        <div>
+                                                                                                            <div class=\\\"column-resize-bar\\\">
+                                                                                                                <span class=\\\"line\\\"></span>
+                                                                                                                <span class=\\\"grabber\\\"></span>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text editor-text \\\" style=\\\"line-height: 1; font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; padding: 10px 10px 10px 20px;\\\" valign=\\\"top\\\" align=\\\"left\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div>
+                                                                                                                                        <br />
+                                                                                                                                    </div>
+                                                                                                                                    <div>
+                                                                                                                                        <br />
+                                                                                                                                    </div>
+                                                                                                                                    <div><span style=\\\"font-size: 26px; color: rgb(255, 255, 255); font-family: Century Gothic, Calibri, Helvetica, Arial, sans-serif;\\\">Buffelgrass </span></div>
+                                                                                                                                    <div><span style=\\\"font-size: 26px; color: rgb(255, 255, 255); font-family: Century Gothic, Calibri, Helvetica, Arial, sans-serif;\\\">Pheno Forecast</span></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(57, 66, 52);\\\" width=\\\"50%\\\" valign=\\\"top\\\" align=\\\"\\\" bgcolor=\\\"394234\\\">
+                                                                                                        <div class=\\\"gl-contains-image\\\">
+                                                                                                            <table class=\\\"editor-image logo-container\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding-top: 0px; padding-bottom: 0px;\\\">
+                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"\\\" class=\\\"\\\" style=\\\"display: block; height: auto; max-width: 100%;\\\" src=\\\"https://files.constantcontact.com/a532cefb001/6b413e97-dbd6-4bf0-9a6d-0e0f66eea4d5.png\\\" width=\\\"135\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(71, 155, 70);\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\" bgcolor=\\\"479B46\\\">
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text editor-text \\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div><span style=\\\"font-size: 20px; color: rgb(255, 255, 255);\\\">Where to expect green now</span></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"article editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\">
+                                                                                                        <div class=\\\"gl-contains-image\\\">
+                                                                                                            <table class=\\\"editor-image  editor-image-vspace-on\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding-top: 10px; padding-bottom: 10px;\\\">
+                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo_ImagePlaceholder/IdleMain540x260.png\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text article-text\\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.8 inch threshold is more appropriate. </span></div>
+                                                                                                                                    <div>
+                                                                                                                                        <br />
+                                                                                                                                    </div>
+                                                                                                                                    <div>
+                                                                                                                                        <span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Check for green up at your site now and let us know what you see! Report your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: italic;\\\">Nature's Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"> or give us </span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">. </span>
+                                                                                                                                    </div>
+                                                                                                                                    <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">&#xfeff;</span></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
+                                                                                                        <div class=\\\"gl-contains-button\\\">
+                                                                                                            <table class=\\\"editor-button\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"width: 100%; min-width: 100%;\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-button-container \\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 10px 20px;\\\">
+                                                                                                                            <table class=\\\"galileo-ap-content-editor\\\" style=\\\"width: 100%; min-width: 100%;\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 0px;\\\">
+                                                                                                                                            <table style=\\\"background-color: rgb(57, 66, 52); width: initial; moz-border-radius: 0px; border-radius: 0px; border-spacing: 0; min-width: initial; padding: 0; border: none;\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" bgcolor=\\\"394234\\\">
+                                                                                                                                                <tbody>
+                                                                                                                                                    <tr>
+                                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
+                                                                                                                                                            <div>
+                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://www.usanpn.org/data/forecasts/Apple_maggot\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool</a></div>
+                                                                                                                                                            </div>
+                                                                                                                                                        </td>
+                                                                                                                                                    </tr>
+                                                                                                                                                </tbody>
+                                                                                                                                            </table>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
+                                                                                                        <div class=\\\"gl-contains-spacer\\\">
+                                                                                                            <table class=\\\"editor-spacer\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"spacer-base\\\" style=\\\"padding-bottom: 30px; height: 1px; line-height: 1px;\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                                            <div><img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/1101116784221/S.gif\\\" width=\\\"5\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: 1px; width: 5px;\\\" /></div>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(71, 155, 70);\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\" bgcolor=\\\"479B46\\\">
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text editor-text \\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div><span style=\\\"font-size: 20px; color: rgb(255, 255, 255);\\\">Where to expect green in 1-2 weeks</span></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"article editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\">
+                                                                                                        <div class=\\\"gl-contains-image\\\">
+                                                                                                            <table class=\\\"editor-image  editor-image-vspace-on\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding-top: 10px; padding-bottom: 10px;\\\">
+                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo_ImagePlaceholder/IdleMain540x260.png\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text \\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div>
+                                                                                                                                        <span style=\\\"font-size: 16px; color: rgb(56, 72, 86); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Let us know what you see at your site by reporting your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; color: rgb(71, 155, 70); font-family: Calibri, Helvetica, Arial, sans-serif; text-decoration: none; font-style: italic; font-weight: bold;\\\">Nature&#x2019;s Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"> or give us </span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(56, 72, 86);\\\">.</span>
+                                                                                                                                    </div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
+                                                                                                        <div class=\\\"gl-contains-button\\\">
+                                                                                                            <table class=\\\"editor-button\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"width: 100%; min-width: 100%;\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-button-container \\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 10px 20px;\\\">
+                                                                                                                            <table class=\\\"galileo-ap-content-editor\\\" style=\\\"width: 100%; min-width: 100%;\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 0px;\\\">
+                                                                                                                                            <table style=\\\"background-color: rgb(57, 66, 52); width: initial; moz-border-radius: 0px; border-radius: 0px; border-spacing: 0; min-width: initial; padding: 0; border: none;\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" bgcolor=\\\"394234\\\">
+                                                                                                                                                <tbody>
+                                                                                                                                                    <tr>
+                                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
+                                                                                                                                                            <div>
+                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://www.usanpn.org/data/forecasts/Apple_maggot\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool</a></div>
+                                                                                                                                                            </div>
+                                                                                                                                                        </td>
+                                                                                                                                                    </tr>
+                                                                                                                                                </tbody>
+                                                                                                                                            </table>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text editor-text \\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: left; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div><a href=\\\"https://www.usanpn.org/data/forecasts/buffelgrass\\\" target=\\\"_blank\\\" style=\\\"color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: normal;\\\">Learn more about these forecasts &#xbb;</a></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
+                                                                                                        <div class=\\\"gl-contains-spacer\\\">
+                                                                                                            <table class=\\\"editor-spacer\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"spacer-base\\\" style=\\\"padding-bottom: 30px; height: 1px; line-height: 1px;\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                                            <div><img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/1101116784221/S.gif\\\" width=\\\"5\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: 1px; width: 5px;\\\" /></div>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"about editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(57, 66, 52);\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\" bgcolor=\\\"394234\\\">
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text about-text\\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 14px; color: #384856; text-align: center; display: block; word-wrap: break-word; line-height: 1.2; padding: 10px 20px;\\\">
+                                                                                                                            <div>
+                                                                                                                                <table class=\\\"editor-image OneColumnMobile\\\" style=\\\"mso-table-rspace: 5.75pt;\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" align=\\\"right\\\">
+                                                                                                                                    <tbody>
+                                                                                                                                        <tr>
+                                                                                                                                            <td class=\\\"mobile-hidden\\\" style=\\\"height: 1px; line-height: 1px; padding: 0px;\\\" width=\\\"15\\\" valign=\\\"top\\\" height=\\\"1\\\" align=\\\"center\\\">
+                                                                                                                                                <img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/sys/S.gif\\\" width=\\\"15\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: auto; max-width: 100%;\\\" />
+                                                                                                                                            </td>
+                                                                                                                                            <td class=\\\"image-cell \\\" style=\\\"padding: 0px;\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                                                <div class=\\\"publish-container\\\"> <img alt=\\\"\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;\\\" src=\\\"https://files.constantcontact.com/a532cefb001/07cb5133-96bf-4a42-8d11-d18e7ebf6d93.png\\\" width=\\\"258\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                                                </div>
+                                                                                                                                            </td>
+                                                                                                                                        </tr>
+                                                                                                                                        <tr>
+                                                                                                                                            <td class=\\\"mobile-hidden\\\" style=\\\"height: 1px; line-height: 1px; padding: 0px;\\\" width=\\\"5\\\" valign=\\\"top\\\" height=\\\"5\\\" align=\\\"center\\\">
+                                                                                                                                                <img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/sys/S.gif\\\" width=\\\"5\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: auto; max-width: 100%;\\\" />
+                                                                                                                                            </td>
+                                                                                                                                            <td class=\\\"mobile-hidden\\\" style=\\\"height: 5px; line-height: 1px; padding: 0px;\\\" valign=\\\"top\\\" height=\\\"5\\\" align=\\\"center\\\">
+                                                                                                                                                <img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/sys/S.gif\\\" width=\\\"1\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"5\\\" border=\\\"0\\\" style=\\\"display: block; height: auto; max-width: 100%;\\\" />
+                                                                                                                                            </td>
+                                                                                                                                        </tr>
+                                                                                                                                    </tbody>
+                                                                                                                                </table>
+                                                                                                                            </div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div style=\\\"text-align: left;\\\" align=\\\"left\\\"><span style=\\\"font-size: 16px; color: rgb(255, 255, 255); font-family: Calibri, Helvetica, Arial, sans-serif; font-weight: bold;\\\">Contact</span></div>
+                                                                                                                                    <div style=\\\"text-align: left;\\\" align=\\\"left\\\"><span style=\\\"font-size: 14px; color: rgb(255, 255, 255); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Kathy Gerst</span></div>
+                                                                                                                                    <div style=\\\"text-align: left;\\\" align=\\\"left\\\"><a href=\\\"mailto:kathy@usanpn.org\\\" target=\\\"_blank\\\" style=\\\"font-size: 14px; color: rgb(255, 255, 255); text-decoration: none; font-weight: bold; font-family: Calibri, Helvetica, Arial, sans-serif; font-style: normal;\\\">kathy@usanpn.org</a></div>
+                                                                                                                                    <div style=\\\"text-align: left;\\\" align=\\\"left\\\"><span style=\\\"font-size: 14px; color: rgb(255, 255, 255); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">520-621-1740</span></div>
+                                                                                                                                    <div style=\\\"text-align: left;\\\" align=\\\"left\\\"><a href=\\\"https://www.usanpn.org/about/staff#kathy\\\" target=\\\"_blank\\\" style=\\\"font-size: 14px; color: rgb(255, 255, 255); text-decoration: none; font-family: Calibri, Helvetica, Arial, sans-serif; font-weight: bold; font-style: normal;\\\">bio</a></div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"social editor-col OneColumnMobile\\\" style=\\\"background-color: rgb(242, 242, 242);\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\" bgcolor=\\\"F2F2F2\\\">
+                                                                                                        <div class=\\\"gl-contains-text\\\">
+                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"editor-text social-text\\\" valign=\\\"top\\\" align=\\\"left\\\" style=\\\"font-family: Trebuchet MS, Verdana, Helvetica, sans-serif; font-size: 12px; color: #384856; text-align: center; display: block; word-wrap: break-word; line-height: 1.2; text-decoration: none; padding: 10px 20px;\\\">
+                                                                                                                            <div></div>
+                                                                                                                            <div class=\\\"text-container galileo-ap-content-editor\\\">
+                                                                                                                                <div>
+                                                                                                                                    <div>Share with a friend</div>
+                                                                                                                                </div>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                        <div class=\\\"gl-contains-social-button\\\">
+                                                                                                            <table class=\\\"editor-social\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"width: 100%; min-width: 100%;\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\" social-container social-container\\\" align=\\\"center\\\" style=\\\"padding: 0px 20px 10px;\\\">
+                                                                                                                            <div class=\\\"galileo-ap-content-editor\\\">
+                                                                                                                                <A HREF=\\\"https://knowledgebase.constantcontact.com/articles/KnowledgeBase/22841-make-it-easy-for-contacts-to-share-an-email-socially-using-icons\\\" style=\\\"text-decoration: none;\\\">
+                                                                                                                                    <img alt=\\\"Facebook\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo-SocialMedia/FB_Share.png\\\" style=\\\"display: inline-block; margin: 0; padding: 0;\\\" width=\\\"100\\\" border=\\\"0\\\" /> &#x200c;
+                                                                                                                                </A>
+                                                                                                                                <A HREF=\\\"https://knowledgebase.constantcontact.com/articles/KnowledgeBase/22841-make-it-easy-for-contacts-to-share-an-email-socially-using-icons\\\" style=\\\"text-decoration: none;\\\">
+                                                                                                                                    <img alt=\\\"Twitter\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo-SocialMedia/Twitter_Share.png\\\" style=\\\"display: inline-block; margin: 0; padding: 0;\\\" width=\\\"100\\\" border=\\\"0\\\" /> &#x200c;
+                                                                                                                                </A>
+                                                                                                                                <A HREF=\\\"https://knowledgebase.constantcontact.com/articles/KnowledgeBase/22841-make-it-easy-for-contacts-to-share-an-email-socially-using-icons\\\" style=\\\"text-decoration: none;\\\">
+                                                                                                                                    <img alt=\\\"LinkedIn\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo-SocialMedia/LinkedIn_Share.png\\\" style=\\\"display: inline-block; margin: 0; padding: 0;\\\" width=\\\"100\\\" border=\\\"0\\\" /> &#x200c;
+                                                                                                                                </A>
+                                                                                                                            </div>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <td class=\\\"spacer editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"left\\\">
+                                                                                                        <div class=\\\"gl-contains-spacer\\\">
+                                                                                                            <table class=\\\"editor-spacer\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                <tbody>
+                                                                                                                    <tr>
+                                                                                                                        <td class=\\\"spacer-container\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                            <table width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\">
+                                                                                                                                <tbody>
+                                                                                                                                    <tr>
+                                                                                                                                        <td class=\\\"spacer-base\\\" style=\\\"padding-bottom: 10px; height: 1px; line-height: 1px;\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"center\\\">
+                                                                                                                                            <div><img alt=\\\"\\\" src=\\\"https://imgssl.constantcontact.com/letters/images/sys/S.gif\\\" width=\\\"5\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" height=\\\"1\\\" border=\\\"0\\\" style=\\\"display: block; height: 1px; width: 5px;\\\" /></div>
+                                                                                                                                        </td>
+                                                                                                                                    </tr>
+                                                                                                                                </tbody>
+                                                                                                                            </table>
+                                                                                                                        </td>
+                                                                                                                    </tr>
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+        </tr>
+    </table>
+
+
+</body>
+</html>";    
+    
+    
 }
