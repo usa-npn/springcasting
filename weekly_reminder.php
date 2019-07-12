@@ -47,7 +47,7 @@ $campaign_body_create = '
   "email_campaign_activities": [
     {
       "format_type": 1,
-      "from_name": "Nature\'s Notebook, USA National Phenology Network",
+      "from_name": "USA National Phenology Network",
       "from_email": "erin@usanpn.org",
       "reply_to_email": "erin@usanpn.org",
       "subject": "See where buffelgrass is green right now",
@@ -89,7 +89,7 @@ $campaign_body_update = '
 {
 
       "format_type": 1,
-      "from_name": "Nature\'s Notebook, USA National Phenology Network",
+      "from_name": "USA National Phenology Network",
       "from_email": "erin@usanpn.org",
       "reply_to_email": "erin@usanpn.org",
       "subject": "See where buffelgrass is green right now",
