@@ -1003,40 +1003,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                 </tr>
                                                                                             </tbody>
                                                                                         </table>
-                                                                                        <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
-                                                                                            <tbody>
-                                                                                                <tr>
-                                                                                                    <td class=\\\" editor-col OneColumnMobile\\\" width=\\\"100%\\\" valign=\\\"top\\\" align=\\\"\\\">
-                                                                                                        <div class=\\\"gl-contains-button\\\">
-                                                                                                            <table class=\\\"editor-button\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"width: 100%; min-width: 100%;\\\">
-                                                                                                                <tbody>
-                                                                                                                    <tr>
-                                                                                                                        <td class=\\\"editor-button-container \\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 10px 20px;\\\">
-                                                                                                                            <table class=\\\"galileo-ap-content-editor\\\" style=\\\"width: 100%; min-width: 100%;\\\">
-                                                                                                                                <tbody>
-                                                                                                                                    <tr>
-                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 0px;\\\">
-                                                                                                                                            <table style=\\\"background-color: rgb(57, 66, 52); width: initial; moz-border-radius: 0px; border-radius: 0px; border-spacing: 0; min-width: initial; padding: 0; border: none;\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" bgcolor=\\\"394234\\\">
-                                                                                                                                                <tbody>
-                                                                                                                                                    <tr>
-                                                                                                                                                        <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
-                                                                                                                                                        </td>
-                                                                                                                                                    </tr>
-                                                                                                                                                </tbody>
-                                                                                                                                            </table>
-                                                                                                                                        </td>
-                                                                                                                                    </tr>
-                                                                                                                                </tbody>
-                                                                                                                            </table>
-                                                                                                                        </td>
-                                                                                                                    </tr>
-                                                                                                                </tbody>
-                                                                                                            </table>
-                                                                                                        </div>
-                                                                                                    </td>
-                                                                                                </tr>
-                                                                                            </tbody>
-                                                                                        </table>
+
                                                                                         <table class=\\\"galileo-ap-layout-editor\\\" width=\\\"100%\\\" cellspacing=\\\"0\\\" cellpadding=\\\"0\\\" border=\\\"0\\\" style=\\\"min-width: 100%;\\\">
                                                                                             <tbody>
                                                                                                 <tr>
