@@ -7,6 +7,7 @@
  */
 date_default_timezone_set("UTC");
 
+
 require_once 'output_file.php';
 /**
  * This loads the CC API
@@ -23,7 +24,9 @@ use Ctct\Components\EmailMarketing\Schedule;
 $params = parse_ini_file(__DIR__ . '/config.ini');
 $log = new OutputFile(__DIR__ . "/output.txt");
 
-define('LIST_NAME', 'Bufflegrass Notification');
+
+define('LIST_NAME', 'Bufflegrass Notification'); //This is the test list
+//define('LIST_NAME', 'Buffelgrass Pheno Forecast');
 define('SECRET_HASH', $params['cc_api_v3_secret_hash']);
 
 define('EMAIL_NOTIFY', $params['email_contact']);
@@ -35,7 +38,7 @@ $debug = $params['safe_mode'];
 
 
 $date = new DateTime();
-$campaign_name = "Weekly Bufflegrass notification email for, " . $date->format("Y-m-d hh:mm:ss ii");
+$campaign_name = "Weekly Bufflegrass notification email for, " . $date->format("Y-m-d H:i:s");
 
 
 $campaign_body_create = '
@@ -47,7 +50,7 @@ $campaign_body_create = '
       "from_name": "Nature\'s Notebook, USA National Phenology Network",
       "from_email": "erin@usanpn.org",
       "reply_to_email": "erin@usanpn.org",
-      "subject": "Weekly Bufflegrass Notification",
+      "subject": "See where buffelgrass is green right now",
       "html_content": "' . getHTML() . '",' .      
       '"physical_address_in_footer": {
         "address_line1": "1311 E 4th St.",
@@ -61,7 +64,6 @@ $campaign_body_create = '
       },
       "document_properties": {        
         "style_content": ".white{color: #ffffff;}",
-        "text_content": "' .  getTextVersion() . '",
         "greeting_salutation": "Dear",
         "greeting_name_type": "F",
         "greeting_secondary": "Greetings!",
@@ -71,7 +73,7 @@ $campaign_body_create = '
   ]
 }';
 
-
+//"text_content": "' .  getTextVersion() . '",
 $campaign = submitCampaignMessageV3($campaign_body_create, $access_token_v3);
 
 
@@ -90,7 +92,7 @@ $campaign_body_update = '
       "from_name": "Nature\'s Notebook, USA National Phenology Network",
       "from_email": "erin@usanpn.org",
       "reply_to_email": "erin@usanpn.org",
-      "subject": "Weekly Bufflegrass Notification",
+      "subject": "See where buffelgrass is green right now",
       "campaign_id": "' . $campaign->campaign_id . '",
       "campaign_activity_id": "' . $campaign->campaign_activities[0]->campaign_activity_id . '",
       "role": "primary_email",
@@ -104,7 +106,7 @@ addContactListToCampaignV3($campaign_body_update, $campaign->campaign_activities
 
 scheduleCampaignV3($campaign->campaign_activities[0]->campaign_activity_id, $access_token_v3);
 
-
+sendEmail("BG Notification should be successfully sent", false);
 
 
 
@@ -112,6 +114,10 @@ scheduleCampaignV3($campaign->campaign_activities[0]->campaign_activity_id, $acc
 
 
 function getTextVersion(){
+    $current_date = new DateTime();
+    $last_week = (new Datetime())->sub(new DateInterval('P7D'));
+    return "Hello,world";
+    /*
     return "<text>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\n
 \\n        
 *********************************\\n
@@ -124,17 +130,17 @@ Buffelgrass Pheno Forecast\\n
 \\n
 See the Buffelgrass Phenoforecast for where to expect green now:\\n
 \\n
-link\\n
+" . 'https://www.usanpn.org/files/npn/maps/buffelgrass-' . $last_week->format('Y-m-d') . '.png' . "\\n
 \\n
  \\n
 \\n
 See the Buffelgrass Phenoforecast for where to expect green in 1-2 weeks:\\n
 \\n
-link\\n
+" . 'https://www.usanpn.org/files/npn/maps/buffelgrass-' . $current_date->format('Y-m-d') . '.png' . "\\n
 \\n
 \\n
 \\n
-Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.8 inch threshold is more appropriate.\\n
+Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.7 inch threshold is more appropriate.\\n
 \\n
 Check for green up at your site now and let us know what you see! Report your observations in Nature's Notebook:\\n
 \\n
@@ -142,13 +148,13 @@ https://www.naturesnotebook.org\\n
 \\n
 Or give us quick feedback:\\n
 \\n
-link\\n
+https://buffelgrass.usanpn.org\\n
 \\n
 \\n
 \\n
 Explore the forecast maps in the Visualization Tool:\\n
 \\n
-link\\n
+http://data.usanpn.org/npn-viz-tool\\n
 \\n
 \\n
 \\n
@@ -157,29 +163,11 @@ Learn more about these forecasts:\\n
 https://www.usanpn.org/data/forecasts/buffelgrass\\n
 \\n
 </text>";
+*/
 }
 
 
-/**
- * This function just returns the HTML content of the email. This was very difficult
- * to create so here's a note on how it was done.
- * First Erin went in and manually made the campaign email as she saw fit using
- * the CC UI / editor. 
- * Next send that email as a 'test message' to myself. copy-paste the contents of
- * that message into this string.
- * Some massaging had to be done, mainly self-closing HTML tags needed to be made
- * explicitely so, because the service would not validate them.
- */
-/*
-function getHTML(){
-    return "<html><body><div align=\\\"center\\\">
- This is a test email.
- <img src = \\\"https://www.usanpn.org/files/new-site/bee-banner-2.png\\\" />
-</div>
-</body></html>";
-}
- * 
- */
+
 
 
 function sendEmail($msg, $err=false){
@@ -426,6 +414,8 @@ function fetchAccessToken(){
 
 
 function getHTML(){
+    $current_date = new DateTime();
+    $last_week = (new Datetime())->sub(new DateInterval('P7D'));
 return "
 <html>
 <head>
@@ -979,7 +969,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                 <tbody>
                                                                                                                     <tr>
                                                                                                                         <td valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding-top: 10px; padding-bottom: 10px;\\\">
-                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo_ImagePlaceholder/IdleMain540x260.png\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;width:100%;margin-top:20px !important\\\" src=\\\"" . 'https://www.usanpn.org/files/npn/maps/buffelgrass-' . $last_week->format('Y-m-d') . '.png' . "\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
                                                                                                                             </div>
                                                                                                                         </td>
                                                                                                                     </tr>
@@ -994,12 +984,12 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                             <div></div>
                                                                                                                             <div class=\\\"text-container galileo-ap-content-editor\\\">
                                                                                                                                 <div>
-                                                                                                                                    <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.8 inch threshold is more appropriate. </span></div>
+                                                                                                                                    <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;color:#384856\\\">Research has indicated that for some sites, 1 inch of precipitation over a 24-day period is sufficient to trigger green-up, whereas in other sites a 1.7 inch threshold is more appropriate. </span></div>
                                                                                                                                     <div>
                                                                                                                                         <br />
                                                                                                                                     </div>
                                                                                                                                     <div>
-                                                                                                                                        <span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Check for green up at your site now and let us know what you see! Report your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: italic;\\\">Nature's Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"> or give us </span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">. </span>
+                                                                                                                                        <span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Did we get it right at your site? Give us quick feedback via our <a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">4-question form</span></a>, or register your site in <a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: italic;\\\">Nature's Notebook</a> and record your long-term observations.</span>
                                                                                                                                     </div>
                                                                                                                                     <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">&#xfeff;</span></div>
                                                                                                                                 </div>
@@ -1030,9 +1020,6 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                                                 <tbody>
                                                                                                                                                     <tr>
                                                                                                                                                         <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
-                                                                                                                                                            <div>
-                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://www.usanpn.org/data/forecasts/Apple_maggot\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool</a></div>
-                                                                                                                                                            </div>
                                                                                                                                                         </td>
                                                                                                                                                     </tr>
                                                                                                                                                 </tbody>
@@ -1110,7 +1097,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                 <tbody>
                                                                                                                     <tr>
                                                                                                                         <td valign=\\\"top\\\" align=\\\"center\\\" style=\\\"padding-top: 10px; padding-bottom: 10px;\\\">
-                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;\\\" src=\\\"https://imgssl.constantcontact.com/galileo/images/templates/Galileo_ImagePlaceholder/IdleMain540x260.png\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
+                                                                                                                            <div class=\\\"publish-container\\\"> <img alt=\\\"basicImage\\\" class=\\\"\\\" style=\\\"display: block; height: auto !important; max-width: 100% !important;width:100%;margin-top:20px !important\\\" src=\\\"" . 'https://www.usanpn.org/files/npn/maps/buffelgrass-' . $current_date->format('Y-m-d') . '.png'  . "\\\" width=\\\"275\\\" vspace=\\\"0\\\" hspace=\\\"0\\\" border=\\\"0\\\" />
                                                                                                                             </div>
                                                                                                                         </td>
                                                                                                                     </tr>
@@ -1127,7 +1114,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                             <div class=\\\"text-container galileo-ap-content-editor\\\">
                                                                                                                                 <div>
                                                                                                                                     <div>
-                                                                                                                                        <span style=\\\"font-size: 16px; color: rgb(56, 72, 86); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Let us know what you see at your site by reporting your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; color: rgb(71, 155, 70); font-family: Calibri, Helvetica, Arial, sans-serif; text-decoration: none; font-style: italic; font-weight: bold;\\\">Nature&#x2019;s Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"> or give us </span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(56, 72, 86);\\\">.</span>
+                                                                                                                                        <span style=\\\"font-size: 16px; color: rgb(56, 72, 86); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Let us know what you see at your site - give us <a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span></a> or report your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; color: rgb(71, 155, 70); font-family: Calibri, Helvetica, Arial, sans-serif; text-decoration: none; font-style: italic; font-weight: bold;\\\">Nature&#x2019;s Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"></span>.
                                                                                                                                     </div>
                                                                                                                                 </div>
                                                                                                                             </div>
@@ -1159,7 +1146,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                                                     <tr>
                                                                                                                                                         <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
                                                                                                                                                             <div>
-                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://www.usanpn.org/data/forecasts/Apple_maggot\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool</a></div>
+                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://data.usanpn.org/npn-viz-tool\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool (click the bug icon on the left and select Buffelgrass)</a></div>
                                                                                                                                                             </div>
                                                                                                                                                         </td>
                                                                                                                                                     </tr>
