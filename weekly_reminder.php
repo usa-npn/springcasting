@@ -8,6 +8,9 @@
 date_default_timezone_set("UTC");
 
 
+
+
+
 require_once 'output_file.php';
 /**
  * This loads the CC API
@@ -25,7 +28,7 @@ $params = parse_ini_file(__DIR__ . '/config.ini');
 $log = new OutputFile(__DIR__ . "/output.txt");
 
 
-define('LIST_NAME', 'Bufflegrass Notification'); //This is the test list
+define('LIST_NAME', 'Testing Buffelgrass Notification'); //This is the test list
 //define('LIST_NAME', 'Buffelgrass Pheno Forecast');
 define('SECRET_HASH', $params['cc_api_v3_secret_hash']);
 
@@ -182,8 +185,24 @@ function scheduleCampaignV3($campaign_activity_id, $access_token){
     global $log;
     $log->write("Calling scheduleCampaignV3");
     
+
+    
     $date = new DateTime();
-    $date->add(new DateInterval('PT25M'));    
+    $date->add(new DateInterval('PT25M'));
+    
+    
+    /**
+     * So this handles an oddity in the CC API where they only acknowledge
+     * dates as being UTC but validate them based on their local timezone
+     * in MA. This will basically schedule the campaign to be sent in
+     * 25 minutes but subtract the appropriate number of hours from the current
+     * UTC time to express that in ET, and adjust for daylight savings.
+     */
+    if(date('I') == 1){
+        $date->sub(new DateInterval('PT3H'));
+    }else{
+        $date->sub(new DateInterval('PT4H'));
+    }    
     
     $url = 'https://api.cc.email/v3/emails/activities/' . $campaign_activity_id . '/schedules';
     
@@ -989,7 +1008,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                                         <br />
                                                                                                                                     </div>
                                                                                                                                     <div>
-                                                                                                                                        <span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Did we get it right at your site? Give us quick feedback via our <a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">4-question form</span></a>, or register your site in <a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: italic;\\\">Nature's Notebook</a> and record your long-term observations.</span>
+                                                                                                                                        <span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Did we get it right at your site? Give us quick feedback via our <SimpleURLProperty name=\\\"simple-data-entry\\\" track=\\\"true\\\" label=\\\"4-question form\\\" href=\\\"https://buffelgrass.usanpn.org\\\"><a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">4-question form</span></a></SimpleURLProperty>, or register your site in <SimpleURLProperty name=\\\"Natures-Notebook\\\" track=\\\"true\\\" label=\\\"Nature's Notebook\\\" href=\\\"https://www.usanpn.org/natures_notebook\\\"><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: italic;\\\">Nature's Notebook</a></SimpleURLProperty> and record your long-term observations.</span>
                                                                                                                                     </div>
                                                                                                                                     <div><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\">&#xfeff;</span></div>
                                                                                                                                 </div>
@@ -1081,7 +1100,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                             <div class=\\\"text-container galileo-ap-content-editor\\\">
                                                                                                                                 <div>
                                                                                                                                     <div>
-                                                                                                                                        <span style=\\\"font-size: 16px; color: rgb(56, 72, 86); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Let us know what you see at your site - give us <a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span></a> or report your observations in </span><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; color: rgb(71, 155, 70); font-family: Calibri, Helvetica, Arial, sans-serif; text-decoration: none; font-style: italic; font-weight: bold;\\\">Nature&#x2019;s Notebook</a><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"></span>.
+                                                                                                                                        <span style=\\\"font-size: 16px; color: rgb(56, 72, 86); font-family: Calibri, Helvetica, Arial, sans-serif;\\\">Let us know what you see at your site - give us <SimpleURLProperty name=\\\"quick-feedback\\\" track=\\\"true\\\" label=\\\"quick feedback\\\" href=\\\"https://buffelgrass.usanpn.org\\\"><a href = 'https://buffelgrass.usanpn.org/' target=\\\"_blank\\\" style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); text-decoration: none; font-weight: bold;\\\"><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif; color: rgb(71, 155, 70); font-weight: bold;\\\">quick feedback</span></a></SimpleURLProperty> or report your observations in </span><SimpleURLProperty name=\\\"Nature-Notebook-2\\\" track=\\\"true\\\" label=\\\"Natures Notebook\\\" href=\\\"https://www.usanpn.org/natures_notebook\\\"><a href=\\\"https://www.usanpn.org/natures_notebook\\\" target=\\\"_blank\\\" style=\\\"font-size: 16px; color: rgb(71, 155, 70); font-family: Calibri, Helvetica, Arial, sans-serif; text-decoration: none; font-style: italic; font-weight: bold;\\\">Nature&#x2019;s Notebook</a></SimpleURLProperty><span style=\\\"font-size: 16px; font-family: Calibri, Helvetica, Arial, sans-serif;\\\"></span>.
                                                                                                                                     </div>
                                                                                                                                 </div>
                                                                                                                             </div>
@@ -1113,7 +1132,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                                                     <tr>
                                                                                                                                                         <td class=\\\"MainTextFullWidthTD\\\" valign=\\\"top\\\" align=\\\"center\\\" style=\\\"font-family: Arial, Verdana, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: #1A75BB; text-decoration: none; padding: 9px 15px 10px;\\\">
                                                                                                                                                             <div>
-                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><a href=\\\"https://data.usanpn.org/npn-viz-tool\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool (click the bug icon on the left and select Buffelgrass)</a></div>
+                                                                                                                                                                <div class=\\\"MainTextFullWidth\\\"><SimpleURLProperty name=\\\"viz-tool\\\" track=\\\"true\\\" label=\\\"Explore the forecast maps in the Visualization Tool (click the bug icon on the left and select Buffelgrass)\\\" href=\\\"https://data.usanpn.org/npn-viz-tool\\\"><a href=\\\"https://data.usanpn.org/npn-viz-tool\\\" style=\\\"color: rgb(255, 255, 255); font-size: 16px; font-family: Arial, Verdana, Helvetica, sans-serif; font-weight: bold; text-decoration: none;\\\">Explore the forecast maps in the Visualization Tool (click the bug icon on the left and select Buffelgrass)</a></SimpleURLProperty></div>
                                                                                                                                                             </div>
                                                                                                                                                         </td>
                                                                                                                                                     </tr>
@@ -1144,7 +1163,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
                                                                                                                             <div></div>
                                                                                                                             <div class=\\\"text-container galileo-ap-content-editor\\\">
                                                                                                                                 <div>
-                                                                                                                                    <div><a href=\\\"https://www.usanpn.org/data/forecasts/buffelgrass\\\" target=\\\"_blank\\\" style=\\\"color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: normal;\\\">Learn more about these forecasts &#xbb;</a></div>
+                                                                                                                                    <div><SimpleURLProperty name=\\\"landing-page\\\" track=\\\"true\\\" label=\\\"Learn more about these forecasts\\\" href=\\\"https://www.usanpn.org/data/forecasts/buffelgrass\\\"><a href=\\\"https://www.usanpn.org/data/forecasts/buffelgrass\\\" target=\\\"_blank\\\" style=\\\"color: rgb(71, 155, 70); text-decoration: none; font-weight: bold; font-style: normal;\\\">Learn more about these forecasts &#xbb;</a></SimpleURLProperty></div>
                                                                                                                                 </div>
                                                                                                                             </div>
                                                                                                                         </td>
@@ -1332,7 +1351,7 @@ font-family: ''; font-style: normal; font-weight: 400; src: local(''), local('')
         </tr>
     </table>
 
-
+<OpensTracking/>
 </body>
 </html>";    
     
